@@ -44,7 +44,7 @@ public:
 	break;
       case Func:
 	eval(expr_head->branch);
-	//TODO use call func
+	//TODO use call func yes yes
 	// expr_head = symbol_table[expr_head->data.Symbol](expr_head->branch);
 	*(expr_head) = *call_func(
 				  expr_head->data.Symbol,
