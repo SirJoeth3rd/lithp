@@ -14,6 +14,8 @@
 
 #include "tokenizer.hpp"
 
+struct lval;
+
 union ldata {
   int Int;
   float Float;
@@ -26,7 +28,8 @@ enum ltype {
   Float,
   String,
   Func,
-  Symbol
+  Symbol,
+  List
 };
 
 struct lval {

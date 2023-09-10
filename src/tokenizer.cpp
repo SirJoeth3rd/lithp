@@ -10,6 +10,8 @@ std::string tok_type_to_string(Token::tok_type type) {
     "Symbol",
     "LBrack",
     "RBrack",
+    "LBBrack",
+    "LBBrack",
     "Comma",
   };
   return names[type];
@@ -105,6 +107,14 @@ std::vector<Token> tokenize(const string& prog) {
 	curr_tok = {Token::RBrack,nullptr};
 	break;
 
+      case '[':
+	curr_tok = {Token::LBBrack,nullptr};
+	break;
+
+      case ']':
+	curr_tok = {Token::RBBrack,nullptr};
+	break;
+
       case ',':
 	curr_tok = {Token::Comma, nullptr};
 	break;
@@ -121,4 +131,30 @@ std::vector<Token> tokenize(const string& prog) {
     tokens.push_back(curr_tok);
   }
   return tokens;
+}
+
+void print_tokens(const std::vector<Token>& tokens) {
+  for (Token t : tokens) {
+    if (t.val) {
+      std::cout << t.val <<  ':' << tok_type_to_string(t.Type) << '\n';
+    } else {
+      switch (t.Type) {
+      case Token::LBrack:
+	std::cout << '(' << '\n';
+	break;
+      case Token::RBrack:
+	std::cout << ')' << '\n';
+	break;
+      case Token::LBBrack:
+	std::cout << '[' << '\n';
+	break;
+      case Token::RBBrack:
+	std::cout << ']' << '\n';
+	break;
+      case Token::Comma:
+	std::cout << ',' << '\n';
+	break;
+      }
+    }
+  }
 }

@@ -1,4 +1,5 @@
 #include "parser.hpp"
+#include "tokenizer.hpp"
 
 using std::string;
 
@@ -23,7 +24,9 @@ lval* parse_tokens(std::vector<Token>& tokens) {
   lval* root = new lval;
   lval* prev = nullptr;
   lval* head = root;
+  
   std::stack<lval*> funcs;
+  std::stack<lval*> lists;
 
   auto END = tokens.end();
   auto tok = tokens.begin();
@@ -36,6 +39,15 @@ lval* parse_tokens(std::vector<Token>& tokens) {
 
   auto get_tok_type = [&] () -> std::string {
     return tok_type_to_string(tok->Type);
+  };
+
+  auto print_curr_tok = [&]() {
+    std::cout << "curr tok {"
+	      << " type: " << get_tok_type();
+    if (tok->val) {
+      std::cout << ", val : " << tok->val;
+    }
+    std::cout << "}\n";
   };
 
   auto expect = [&] (Token::tok_type type) mutable {
@@ -139,8 +151,8 @@ lval* parse_tokens(std::vector<Token>& tokens) {
   };
 
   auto is_atom = [&]() mutable {
-    // std::cout << "is_atom\n";
-    // std::cout << "  tok_type in is_atom " << get_tok_type() << "\n";
+    std::cout << "is_atom\n";
+    std::cout << "  tok_type in is_atom " << get_tok_type() << "\n";
     auto tok_type = tok->Type;
     switch (tok_type) {
     case Token::Symbol:
@@ -153,18 +165,57 @@ lval* parse_tokens(std::vector<Token>& tokens) {
     };
   };
 
+  auto is_list = [&]() mutable {
+    std::cout << "is list\n";
+    auto tok_type = tok->Type;
+    if (tok_type == Token::LBBrack) {
+      return true;
+    }
+    return false;
+  };
+
   std::function<void()> parse_func;
+  std::function<void()> parse_list;
 
   auto parse_expr = [&]() mutable {
     //note do not handle tok in here
-    // std::cout << "parse_expr\n";
+    std::cout << "parse_expr\n";
     if (is_func_call()) {
       parse_func();
     } else if (is_atom()){
       parse_atom();
+    } else if (is_list()) {
+      parse_list();
     } else {
       throw std::logic_error("Syntax error");
     }
+  };
+
+  parse_list = [&]() mutable {
+    expect(Token::LBBrack);
+
+    *head = (lval){nullptr,prev,nullptr,0,List};
+
+    prev = head;
+    head = new lval;
+    prev->branch = head;
+    lists.push(prev);
+    
+    while (tok->Type != Token::RBBrack) {
+      parse_expr();
+      if (tok->Type == Token::RBBrack) {
+	break;
+      } else {
+	expect(Token::Comma);
+      }
+    }
+    prev->next = nullptr;
+    head = lists.top();
+    lists.pop();
+    prev = head->prev;
+    inc_head();
+
+    tok++;
   };
 
   parse_func = [&]() mutable {
@@ -174,23 +225,25 @@ lval* parse_tokens(std::vector<Token>& tokens) {
     while (tok->Type != Token::RBrack) {
       parse_expr();
       if (tok->Type == Token::RBrack) {
-	prev->next = nullptr;
-	head = funcs.top();
-	funcs.pop();
-	prev = head->prev;
-	inc_head();
 	break;
       } else {
 	expect(Token::Comma);
       }
     }
+
+    //setting head back to top
+    prev->next = nullptr;
+    head = funcs.top();
+    funcs.pop();
+    prev = head->prev;
+    inc_head();
+
     tok++;
   };
 
   parse_expr();
   prev->next = nullptr;
   delete head;
-    
   return root;
 }
 
@@ -198,17 +251,35 @@ void print_ast(lval* head, int indent) {
   while (head) {
     switch (head->type) {
     case (Func):
-      std::cout << string(indent,' ') << "Func:" << head->data.Symbol << "\n";
+      std::cout << string(indent,' ')
+		<< "Func:"
+		<< head->data.Symbol
+		<< "\n";
+      print_ast(head->branch,indent + 2);
+      break;
+    case (List):
+      std::cout << string(indent,' ')
+		<< "List:"
+		<< "\n";
       print_ast(head->branch,indent + 2);
       break;
     case (Symbol):
-      std::cout << string(indent,' ') << "Symbol:" << head->data.Symbol << "\n";
+      std::cout << string(indent,' ')
+		<< "Symbol:"
+		<< head->data.Symbol
+		<< "\n";
       break;
     case (String):
-      std::cout << string(indent,' ') << "String:" << head->data.String << "\n";
+      std::cout << string(indent,' ')
+		<< "String:"
+		<< head->data.String
+		<< "\n";
       break;
     case (Int):
-      std::cout << string(indent,' ') << "Int:" << head->data.Int << "\n";
+      std::cout << string(indent,' ')
+		<< "Int:"
+		<< head->data.Int
+		<< "\n";
       break;
     case (Float):
       std::cout << string(indent,' ') << "Float:" << head->data.Float << "\n";

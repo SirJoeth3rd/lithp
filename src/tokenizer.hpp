@@ -20,6 +20,8 @@ struct Token {
     Symbol,
     LBrack,
     RBrack,
+    LBBrack,
+    RBBrack,
     Comma
   } Type;
   const char* val;
@@ -27,6 +29,7 @@ struct Token {
 
 std::string tok_type_to_string(Token::tok_type type);
 std::vector<Token> tokenize(const std::string& prog);
+void print_tokens(const std::vector<Token>& tokens);
 
 
 
