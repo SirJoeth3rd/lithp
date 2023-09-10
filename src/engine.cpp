@@ -15,6 +15,12 @@ public:
 
 class Engine {
 public:
+  int lambda_count;
+
+  Engine() {
+    lambda_count = 0;
+  }
+  
   void parse_push(const string& expr){
     std::vector<Token> tokens = tokenize(expr);
     lval* root = parse_tokens(tokens);
@@ -38,6 +44,7 @@ public:
   void eval(lval* expr_head) {
     //Note we probaly need to pass a double pointer here
     bool found;
+    lval* result;
     while (expr_head) {
       switch (expr_head->type) {
       case Int:
@@ -54,21 +61,22 @@ public:
 	}
 	break;
       case Func:
-	//Here we do function llokup
-	eval(expr_head->branch);
-	lval* result = call_func(
-				  expr_head->data.Symbol,
-				  expr_head->branch
-				  );
-	if (!result) {
-	  break;
+	//Here we do function lookup
+	if (is_macro(expr_head->data.Symbol)) {
+	  lval* result = call_func(
+				   expr_head->data.Symbol,
+				   expr_head->branch
+				   );
+	  set_lval(expr_head, result);
+	  eval(result);
+	} else {
+	  eval(expr_head->branch);
+	  lval* result = call_func(
+				   expr_head->data.Symbol,
+				   expr_head->branch
+				   );
+	  set_lval(expr_head, result);
 	}
-	
-	if (result->next == nullptr) {
-	  result->next = expr_head->next;
-	}
-
-	set_lval(expr_head, result);
 	break;
       }
       expr_head = expr_head->next;
@@ -76,6 +84,9 @@ public:
   }
 
   void set_lval(lval* x, lval* y) {
+    if (!y || !x) {
+      return;
+    }
     y->next = y->next ? y->next : x->next;
     y->prev = y->prev ? y->prev : x->prev;
     *x = *y;
@@ -92,7 +103,7 @@ public:
   lval* call_func(const char* name, lval* input) {
     //TODO, check for built in functions here
     if (!is_func(name)) {
-      //must be a symbol
+      //must be a symbol //TODO: this needs to be in a while loop
       lval* lookup = fetch_symbol(name);
       name = lookup->data.Symbol;
     }
@@ -175,8 +186,31 @@ lval* set(const lval* head,Engine* engine) {
   return nullptr;
 }
 
+void recurse_replace(lval* symbol, lval* head) {
+
+}
+
+lval* function(lval* head, Engine* engine) {
+  //first lval is a list
+  //from there we have the body
+  lval* args = head; //this must be a list of symbols
+  lval* body = head->next; //this is the body
+
+  string anon_name = "lambda_";
+
+  //we need to store the body and return a lval(lval*, Engine*) function
+  engine->subscribe_func([](lval* head, Engine* engine) -> lval* {
+    //in here head is just the args so we replace them
+    while(head) {
+      
+      
+      head = head->next;
+    }
+  }, anon_name.c_str());
+}
+
 int main() {
-  string test = "[1,2,[4,5],9]";
+  string test = "h([1,2,[4,f(x,y)],[z],99])";
 
   std::vector<Token> tokens = tokenize(test);
 
@@ -188,7 +222,6 @@ int main() {
   std::cout << "==========PRINT_AST==========\n";
   print_ast(root);
 
-  /*
 
   std::cout << "==========EVUALATOR TEST========" << '\n';
   Engine engine;
@@ -197,11 +230,8 @@ int main() {
   engine.subscribe_func(set, "set");
 
   
-  engine.parse_push("set(x,plus)");
-  engine.eval_top();
-  engine.parse_push("x(2,3)");
+  engine.parse_push("plus(2,mul(3,3))");
   engine.eval_top();
   lval* top = engine.pop();
   std::cout << top->data.Int << std::endl;
-  */
 }
