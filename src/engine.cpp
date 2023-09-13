@@ -20,6 +20,10 @@ public:
     //initialise with first empty map
     push_namespace();
   }
+
+  ~SymbolLookup() {
+    table.clear();
+  }
   
   T& operator[](const char* name) {
     //search from bottom to top
@@ -162,7 +166,6 @@ public:
   }
 
   void set_symbol(const char* name, lval* value) {
-    symbol_table[name] = value;
     symbol_table.insert(name, value);
   }
 
