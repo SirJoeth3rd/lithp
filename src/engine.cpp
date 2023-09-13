@@ -13,6 +13,51 @@ public:
     { return std::strcmp(str1, str2) < 0; }
 };
 
+template <class T>
+class SymbolLookup {
+public:
+  SymbolLookup() {
+    //initialise with first empty map
+    push_namespace();
+  }
+  
+  T& operator[](const char* name) {
+    //search from bottom to top
+    for (auto sym_tab = table.rbegin(); sym_tab != table.rend(); sym_tab++) {
+      if (sym_tab->count(name)) {
+	return (*sym_tab)[name];
+      }
+    }
+    return (*table.end())[name];
+  }
+
+  void insert(const char* name, T item) {
+    table.back()[name] = item;
+  }
+
+  int count(const char* name) {
+    int count = 0;
+    for (auto sym_tab = table.rbegin(); sym_tab != table.rend(); sym_tab++) {
+      if (sym_tab->count(name)) {
+	count++;
+      }
+    }
+    return count;
+  }
+
+  void push_namespace() {
+    std::map<const char*, T, StrCompare> new_map;
+    table.push_back(new_map);
+  }
+
+  void pop_namespace() {
+    table.pop_back();
+  }
+  
+private:
+  std::vector<std::map<const char*, T, StrCompare>> table;
+};
+
 class Engine {
 public:
   int lambda_count;
@@ -52,6 +97,8 @@ public:
       case Float:
 	break;
       case String:
+	break;
+      case List:
 	break;
       case Symbol:
 	//Here we do symbol lookup
@@ -93,11 +140,11 @@ public:
   }
 
   void subscribe_func(lithp_func func,const char* name) {
-    function_table[name] = func;
+    function_table.insert(name, func);
   }
 
   void subscribe_macro(lithp_func func, const char* name) {
-    function_table[name] = func;
+    function_table.insert(name, func);
   }
 
   lval* call_func(const char* name, lval* input) {
@@ -116,6 +163,7 @@ public:
 
   void set_symbol(const char* name, lval* value) {
     symbol_table[name] = value;
+    symbol_table.insert(name, value);
   }
 
   bool is_func(const char* name) {
@@ -132,18 +180,9 @@ public:
   
 private:
   std::stack<lval*> exprs;
-  std::map<
-    const char*,
-    lithp_func,
-    StrCompare> function_table;
-  std::map<
-    const char*,
-    lithp_func,
-    StrCompare> macro_table;
-  std::map<
-    const char*,
-    lval*,
-    StrCompare> symbol_table;
+  SymbolLookup<lithp_func> function_table;
+  SymbolLookup<lithp_func> macro_table;
+  SymbolLookup<lval*> symbol_table;
 };
 
 lval* plus(const lval* head, Engine* engine) {
@@ -186,29 +225,6 @@ lval* set(const lval* head,Engine* engine) {
   return nullptr;
 }
 
-void recurse_replace(lval* symbol, lval* head) {
-
-}
-
-lval* function(lval* head, Engine* engine) {
-  //first lval is a list
-  //from there we have the body
-  lval* args = head; //this must be a list of symbols
-  lval* body = head->next; //this is the body
-
-  string anon_name = "lambda_";
-
-  //we need to store the body and return a lval(lval*, Engine*) function
-  engine->subscribe_func([](lval* head, Engine* engine) -> lval* {
-    //in here head is just the args so we replace them
-    while(head) {
-      
-      
-      head = head->next;
-    }
-  }, anon_name.c_str());
-}
-
 int main() {
   string test = "h([1,2,[4,f(x,y)],[z],99])";
 
@@ -229,8 +245,9 @@ int main() {
   engine.subscribe_func(mul, "mul");
   engine.subscribe_func(set, "set");
 
-  
-  engine.parse_push("plus(2,mul(3,3))");
+  engine.parse_push("set(x,2)");
+  engine.eval_top();
+  engine.parse_push("plus(x,2)");
   engine.eval_top();
   lval* top = engine.pop();
   std::cout << top->data.Int << std::endl;
