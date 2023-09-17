@@ -1,194 +1,166 @@
-#include "parser.hpp"
+#include "lithp.hpp"
 #include "tokenizer.hpp"
 
 using std::string;
 
-//TODO, delete later when you use engine header file
-class Engine;
-typedef std::function<lval*(lval*,Engine*)> lithp_func;
+SymbolLookup::SymbolLookup() {
+  push_namespace();
+}
 
-struct StrCompare : public std::binary_function<const char*, const char*, bool> {
-public:
-    bool operator() (const char* str1, const char* str2) const
-    { return std::strcmp(str1, str2) < 0; }
-};
+SymbolLookup::~SymbolLookup() {
+  table.clear();
+}
 
-template <class T>
-class SymbolLookup {
-public:
-  SymbolLookup() {
-    //initialise with first empty map
-    push_namespace();
-  }
-
-  ~SymbolLookup() {
-    table.clear();
-  }
-  
-  T& operator[](const char* name) {
-    //search from bottom to top
-    for (auto sym_tab = table.rbegin(); sym_tab != table.rend(); sym_tab++) {
+lval_sptr SymbolLookup::operator[](const char* name) {
+  for (auto sym_tab = table.rbegin(); sym_tab != table.rend(); sym_tab++) {
       if (sym_tab->count(name)) {
 	return (*sym_tab)[name];
       }
     }
     return (*table.end())[name];
-  }
+}
 
-  void insert(const char* name, T item) {
-    table.back()[name] = item;
-  }
-
-  int count(const char* name) {
-    int count = 0;
-    for (auto sym_tab = table.rbegin(); sym_tab != table.rend(); sym_tab++) {
-      if (sym_tab->count(name)) {
-	count++;
-      }
-    }
-    return count;
-  }
-
-  void push_namespace() {
-    std::map<const char*, T, StrCompare> new_map;
-    table.push_back(new_map);
-  }
-
-  void pop_namespace() {
-    table.pop_back();
-  }
+void SymbolLookup::insert(const char* name, lval_sptr item) {
+  table.back()[name] = item;
+}
   
-private:
-  std::vector<std::map<const char*, T, StrCompare>> table;
-};
-
-class Engine {
-public:
-  int lambda_count;
-
-  Engine() {
-    lambda_count = 0;
+int SymbolLookup::count(const char* name) {
+  int count = 0;
+  for (auto sym_tab = table.rbegin(); sym_tab != table.rend(); sym_tab++) {
+    if (sym_tab->count(name)) {
+      count++;
+    }
   }
+  return count;
+}
+
+void SymbolLookup::push_namespace() {
+  std::map<const char*, lval_sptr, StrCompare> new_map;
+  table.push_back(new_map);
+}
+
+void SymbolLookup::pop_namespace() {
+  table.pop_back();
+}
+
+Engine::Engine() {}
+
+Engine::~Engine() {
+  bool dealloc_success = exprs.empty();
+  if (dealloc_success) {
+    std::cout << "deallocation success of engine" << std::endl;
+  } else {
+    std::cout << "deallocation failure of engine" << std::endl;
+  }
+}
   
-  void parse_push(const string& expr){
-    std::vector<Token> tokens = tokenize(expr);
-    lval* root = parse_tokens(tokens);
-    exprs.push(root);
-  }
+void Engine::parse_push(const string& expr){
+  std::vector<Token> tokens = tokenize(expr);
+  lval_sptr root = parse_tokens(tokens);
+  exprs.push(root);
+}
 
-  lval* pop() {
-    lval* top = exprs.top();
-    exprs.pop();
-    return top;
-  }
+lval_sptr Engine::pop() {
+  lval_sptr top = exprs.top();
+  exprs.pop();
+  return top;
+}
 
-  void eval_top() {
-    //pop the top level lval and eval, push back the new lval
-    lval* top = exprs.top();
-    exprs.pop();
-    eval(top);
-    exprs.push(top);
-  }
+void Engine::eval_top() {
+  //pop the top level lval and eval, push back the new lval
+  lval_sptr top = exprs.top();
+  exprs.pop();
+  eval(top);
+  exprs.push(top);
+}
 
-  void eval(lval* expr_head) {
-    //Note we probaly need to pass a double pointer here
-    bool found;
-    lval* result;
-    while (expr_head) {
-      switch (expr_head->type) {
-      case Int:
-	break;
-      case Float:
-	break;
-      case String:
-	break;
-      case List:
-	break;
-      case Symbol:
-	//Here we do symbol lookup
-	found = symbol_table.count(expr_head->data.Symbol);
-	if  (found) {
-	  set_lval(expr_head,fetch_symbol(expr_head->data.Symbol));
-	}
-	break;
-      case Func:
-	//Here we do function lookup
-	if (is_macro(expr_head->data.Symbol)) {
-	  lval* result = call_func(
-				   expr_head->data.Symbol,
-				   expr_head->branch
-				   );
-	  set_lval(expr_head, result);
-	  eval(result);
-	} else {
-	  eval(expr_head->branch);
-	  lval* result = call_func(
-				   expr_head->data.Symbol,
-				   expr_head->branch
-				   );
-	  set_lval(expr_head, result);
-	}
-	break;
+void Engine::eval(lval_sptr expr_head) {
+  //Note we probaly need to pass a double pointer here
+  bool found;
+  lval_sptr result;
+  while (expr_head) {
+    switch (expr_head->type) {
+    case Int:
+      break;
+    case Float:
+      break;
+    case String:
+      break;
+    case List:
+      break;
+    case Nil:
+      break;
+    case Symbol:
+      //Here we do symbol lookup
+      found = symbol_table.count(expr_head->data.Symbol);
+      if  (found) {
+	set_lval(expr_head,fetch_symbol(expr_head->data.Symbol));
       }
-      expr_head = expr_head->next;
+      break;
+    case Func:
+      //Here we do function lookup
+      if (is_macro(expr_head->data.Symbol)) {
+	lval_sptr result = call_func(
+				 expr_head->branch,
+				 expr_head->data.Symbol
+				 );
+	set_lval(expr_head, result);
+	eval(result);
+      } else {
+	eval(expr_head->branch);
+	lval_sptr result = call_func(
+				 expr_head->branch,
+				 expr_head->data.Symbol
+				 );
+	set_lval(expr_head, result);
+      }
+      break;
     }
+    expr_head = expr_head->next;
   }
+}
 
-  void set_lval(lval* x, lval* y) {
-    if (!y || !x) {
-      return;
-    }
-    y->next = y->next ? y->next : x->next;
-    y->prev = y->prev ? y->prev : x->prev;
-    *x = *y;
+void Engine::set_lval(lval_sptr x, lval_sptr y) {
+  if (!y || !x) {
+    return;
   }
+  y->next = y->next ? y->next : x->next;
+  y->prev = y->prev ? y->prev : x->prev;
+  *x = *y;
+}
 
-  void subscribe_func(lithp_func func,const char* name) {
-    function_table.insert(name, func);
+lval_sptr Engine::call_func(lval_sptr input, const char* name) {
+  //TODO, check for built in functions here
+  if (!is_func(name)) {
+    //must be a symbol //TODO: this needs to be in a while loop
+    lval_sptr lookup = fetch_symbol(name);
+    name = lookup->data.Symbol;
   }
+  return function_table[name](input, this);
+}
 
-  void subscribe_macro(lithp_func func, const char* name) {
-    function_table.insert(name, func);
-  }
+lval_sptr Engine::fetch_symbol(const char* name) {
+  return symbol_table[name];
+}
 
-  lval* call_func(const char* name, lval* input) {
-    //TODO, check for built in functions here
-    if (!is_func(name)) {
-      //must be a symbol //TODO: this needs to be in a while loop
-      lval* lookup = fetch_symbol(name);
-      name = lookup->data.Symbol;
-    }
-    return function_table[name](input, this);
-  }
-
-  lval* fetch_symbol(const char* name) {
-    return symbol_table[name];
-  }
-
-  void set_symbol(const char* name, lval* value) {
+void Engine::set_symbol(lval_sptr value, const char* name) {
     symbol_table.insert(name, value);
   }
 
-  bool is_func(const char* name) {
-    return function_table.count(name);
+bool Engine::is_func(const char* name) {
+    return function_.count(name);
   }
 
-  bool is_macro(const char* name) {
-    return macro_table.count(name);
-  }
+bool Engine::is_macro(const char* name) {
+  return macro_table.count(name);
+}
 
-  bool is_symbol(const char* name) {
+bool Engine::is_symbol(const char* name) {
     return symbol_table.count(name);
-  }
-  
-private:
-  std::stack<lval*> exprs;
-  SymbolLookup<lithp_func> function_table;
-  SymbolLookup<lithp_func> macro_table;
-  SymbolLookup<lval*> symbol_table;
-};
+}
 
-lval* plus(const lval* head, Engine* engine) {
+//custom function declarations
+lval_sptr plus(const lval_sptr head, Engine* engine) {
   int total = 0;
   while (head) {
     if (head->type == Int) {
@@ -198,11 +170,12 @@ lval* plus(const lval* head, Engine* engine) {
     }
     head = head->next;
   }
-  lval* ret_val = new lval{nullptr, nullptr, nullptr, total, Int};
+  
+  lval_sptr ret_val = lval(nullptr, nullptr, nullptr, Int, (ldata)total);
   return ret_val;
 };
 
-lval* mul(const lval* head, Engine* engine) {
+lval_sptr mul(const lval_sptr head, Engine* engine) {
   int total = 1;
   while (head) {
     if (head->type == Int) {
@@ -212,12 +185,12 @@ lval* mul(const lval* head, Engine* engine) {
     }
     head = head->next;
   }
-  lval* ret_val = new lval{nullptr, nullptr, nullptr, total, Int};
+  lval_sptr ret_val = new lval{nullptr, nullptr, nullptr, total, Int};
   return ret_val;
 }
 
-lval* set(const lval* head,Engine* engine) {
-  //we expect a symbol name first and a lval*
+lval_sptr set(const lval_sptr head,Engine* engine) {
+  //we expect a symbol name first and a lval_sptr
   if (head->type != Symbol){
     //wud?
   }
@@ -229,7 +202,7 @@ lval* set(const lval* head,Engine* engine) {
 }
 
 int main() {
-  string test = "h([1,2,[4,f(x,y)],[z],99])";
+  string test = "h([1,2,[4,f(x,y)],[z,y],99])";
 
   std::vector<Token> tokens = tokenize(test);
 
@@ -237,7 +210,7 @@ int main() {
 
 
   std::cout << "==========PARSER TESTS==========" << '\n';
-  lval* root = parse_tokens(tokens);
+  lval_sptr root = parse_tokens(tokens);
   std::cout << "==========PRINT_AST==========\n";
   print_ast(root);
 
@@ -252,6 +225,6 @@ int main() {
   engine.eval_top();
   engine.parse_push("plus(x,2)");
   engine.eval_top();
-  lval* top = engine.pop();
+  lval_sptr top = engine.pop();
   std::cout << top->data.Int << std::endl;
 }

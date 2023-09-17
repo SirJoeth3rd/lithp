@@ -1,7 +1,24 @@
-#include "parser.hpp"
+// #include "parser.hpp"
 #include "tokenizer.hpp"
+#include "lithp.hpp"
 
 using std::string;
+
+lval::lval() {
+  type = Nil;
+}
+
+lval::lval(lval_sptr n, lval_sptr p, lval_sptr b, ltype t, ldata d) {
+  next = n;
+  prev = p;
+  branch = b;
+  type = t;
+  data = d;
+}
+
+lval::~lval() {
+  //TODO this needs to delete the memory of string or symbol
+}
 
 string ltype_to_string(ltype type) {
   switch (type) {
@@ -15,39 +32,38 @@ string ltype_to_string(ltype type) {
     return "Func";
   case Symbol:
     return "Symbol";
+  case List:
+    return "List";
+  case Nil:
+    return "Nil";
+  case Lambda:
+    return "Nil";
   }
   return "";
 }
 
-lval* parse_tokens(std::vector<Token>& tokens) {
+lval_sptr parse_tokens(std::vector<Token>& tokens) {
   //TODO: BIGGIE We need better error handling here
-  lval* root = new lval;
-  lval* prev = nullptr;
-  lval* head = root;
+  lval_sptr root = std::make_shared<lval>(lval());
+  lval_sptr prev = nullptr;
+  lval_sptr head = root;
   
-  std::stack<lval*> funcs;
-  std::stack<lval*> lists;
+  std::stack<lval_sptr> funcs;
+  std::stack<lval_sptr> lists;
+
+  std::stack<lval_sptr> saves;
 
   auto END = tokens.end();
   auto tok = tokens.begin();
 
   auto inc_head = [&] () mutable {
     prev = head;
-    head = new lval;
+    head = std::make_shared<lval>(lval());
     prev->next = head;
   };
 
   auto get_tok_type = [&] () -> std::string {
     return tok_type_to_string(tok->Type);
-  };
-
-  auto print_curr_tok = [&]() {
-    std::cout << "curr tok {"
-	      << " type: " << get_tok_type();
-    if (tok->val) {
-      std::cout << ", val : " << tok->val;
-    }
-    std::cout << "}\n";
   };
 
   auto expect = [&] (Token::tok_type type) mutable {
@@ -68,7 +84,7 @@ lval* parse_tokens(std::vector<Token>& tokens) {
     std::cout << "  value = " << tok->val << '\n';
     ldata data;
     data.Int = std::atoi(tok->val);
-    *head = (lval){nullptr,prev,nullptr,data,Int};
+    *head = lval(nullptr, prev, nullptr, Int, data);
     inc_head();
     tok++;
   };
@@ -78,7 +94,7 @@ lval* parse_tokens(std::vector<Token>& tokens) {
     std::cout << "  value = " << tok->val << '\n';
     ldata data;
     data.Float = std::atof(tok->val);
-    *head = (lval){nullptr,prev,nullptr,data,Float};
+    *head = lval(nullptr, prev, nullptr, Float, data);
     inc_head();
     tok++;
   };
@@ -88,7 +104,7 @@ lval* parse_tokens(std::vector<Token>& tokens) {
     std::cout << "  value = " << tok->val << '\n';
     ldata data;
     data.String = (char*)tok->val;
-    *head = (lval){nullptr,prev,nullptr,data,String};
+    *head = lval(nullptr,prev,nullptr,String,data);
     inc_head();
     tok++;
   };
@@ -98,16 +114,15 @@ lval* parse_tokens(std::vector<Token>& tokens) {
     std::cout << "  tok_type " << get_tok_type() << '\n';
     std::cout << "  val " << tok->val << '\n';
     ldata data;
-    data.Symbol = tok->val; //TODO copy this
-    ltype type = (is_func) ? Func : Symbol;
-    *head = (lval){nullptr,prev,nullptr,data,type};
-    if (type == Symbol) {
-      inc_head();
-    } else {
+    data.Symbol = tok->val;
+    *head = lval(nullptr,prev,nullptr,Symbol,data);
+    if (is_func) {
       prev = head;
-      head = new lval;
+      head = std::make_shared<lval>(lval());
       prev->branch = head;
       funcs.push(prev);
+    } else {
+      inc_head();
     }
     tok++;
   };
@@ -194,10 +209,13 @@ lval* parse_tokens(std::vector<Token>& tokens) {
   parse_list = [&]() mutable {
     expect(Token::LBBrack);
 
-    *head = (lval){nullptr,prev,nullptr,0,List};
+    // *head = lval(nullptr,prev,nullptr,List,0);
+    ldata data;
+    data.Int = 0;
+    *head = lval(nullptr, prev, nullptr, List, data);
 
     prev = head;
-    head = new lval;
+    head = std::make_shared<lval>(lval());
     prev->branch = head;
     lists.push(prev);
     
@@ -243,11 +261,10 @@ lval* parse_tokens(std::vector<Token>& tokens) {
 
   parse_expr();
   prev->next = nullptr;
-  delete head;
   return root;
 }
 
-void print_ast(lval* head, int indent) {
+void print_ast(lval_sptr head, int indent) {
   while (head) {
     switch (head->type) {
     case (Func):
