@@ -43,6 +43,7 @@ void SymbolLookup::pop_namespace() {
   table.pop_back();
 }
 
+/*
 Engine::Engine() {}
 
 Engine::~Engine() {
@@ -97,7 +98,7 @@ void Engine::eval(lval_sptr expr_head) {
 	set_lval(expr_head,fetch_symbol(expr_head->data.Symbol));
       }
       break;
-    case Func:
+    case Lambda:
       //Here we do function lookup
       if (is_macro(expr_head->data.Symbol)) {
 	lval_sptr result = call_func(
@@ -158,9 +159,11 @@ bool Engine::is_macro(const char* name) {
 bool Engine::is_symbol(const char* name) {
     return symbol_table.count(name);
 }
+*/
 
 //custom function declarations
-lval_sptr plus(const lval_sptr head, Engine* engine) {
+/*
+lval_sptr plus(lval_sptr head, Engine* engine) {
   int total = 0;
   while (head) {
     if (head->type == Int) {
@@ -200,21 +203,21 @@ lval_sptr set(const lval_sptr head,Engine* engine) {
   
   return nullptr;
 }
+*/
 
 int main() {
-  string test = "h([1,2,[4,f(x,y)],[z,y],99])";
+  string test = "h(f(g,88,[1,2,3]),[gg(hello, world)])";
 
   std::vector<Token> tokens = tokenize(test);
 
   print_tokens(tokens);
-
 
   std::cout << "==========PARSER TESTS==========" << '\n';
   lval_sptr root = parse_tokens(tokens);
   std::cout << "==========PRINT_AST==========\n";
   print_ast(root);
 
-
+  /*
   std::cout << "==========EVUALATOR TEST========" << '\n';
   Engine engine;
   engine.subscribe_func(plus, "plus");
@@ -227,4 +230,5 @@ int main() {
   engine.eval_top();
   lval_sptr top = engine.pop();
   std::cout << top->data.Int << std::endl;
+  */
 }

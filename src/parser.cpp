@@ -18,7 +18,7 @@ lval::lval(lval_sptr n, lval_sptr p, lval_sptr b, ltype t, ldata d) {
 
 lval::~lval() {
   //TODO this needs to delete the memory of string or symbol
-}
+};
 
 string ltype_to_string(ltype type) {
   switch (type) {
@@ -28,8 +28,6 @@ string ltype_to_string(ltype type) {
     return "Float";
   case String:
     return "String";
-  case Func:
-    return "Func";
   case Symbol:
     return "Symbol";
   case List:
@@ -37,7 +35,7 @@ string ltype_to_string(ltype type) {
   case Nil:
     return "Nil";
   case Lambda:
-    return "Nil";
+    return "Lambda";
   }
   return "";
 }
@@ -206,6 +204,22 @@ lval_sptr parse_tokens(std::vector<Token>& tokens) {
     }
   };
 
+  auto push_saves = [&]() mutable {
+    std::cout << "push save\n";
+    prev = head;
+    head = std::make_shared<lval>(lval());
+    prev->branch = head;
+    saves.push(prev);    
+  };
+
+  auto pop_saves = [&]() mutable {
+    std::cout << "pop save\n";
+    prev->next = nullptr;
+    head = saves.top();
+    saves.pop();
+    prev = head->prev;
+  };
+
   parse_list = [&]() mutable {
     expect(Token::LBBrack);
 
@@ -214,10 +228,7 @@ lval_sptr parse_tokens(std::vector<Token>& tokens) {
     data.Int = 0;
     *head = lval(nullptr, prev, nullptr, List, data);
 
-    prev = head;
-    head = std::make_shared<lval>(lval());
-    prev->branch = head;
-    lists.push(prev);
+    push_saves();
     
     while (tok->Type != Token::RBBrack) {
       parse_expr();
@@ -227,18 +238,23 @@ lval_sptr parse_tokens(std::vector<Token>& tokens) {
 	expect(Token::Comma);
       }
     }
-    prev->next = nullptr;
-    head = lists.top();
-    lists.pop();
-    prev = head->prev;
+
+    pop_saves();
+
     inc_head();
 
     tok++;
   };
 
   parse_func = [&]() mutable {
-    // std::cout << "parse_func\n";
-    parse_symbol(true);
+    ldata data;
+    data.Symbol = tok->val;
+    *head = lval(nullptr, prev, nullptr, Symbol, data);
+
+    push_saves();
+
+    tok++;
+    
     expect(Token::LBrack);
     while (tok->Type != Token::RBrack) {
       parse_expr();
@@ -248,14 +264,11 @@ lval_sptr parse_tokens(std::vector<Token>& tokens) {
 	expect(Token::Comma);
       }
     }
-
-    //setting head back to top
-    prev->next = nullptr;
-    head = funcs.top();
-    funcs.pop();
-    prev = head->prev;
+    
+    pop_saves();
+    
     inc_head();
-
+    
     tok++;
   };
 
@@ -267,18 +280,21 @@ lval_sptr parse_tokens(std::vector<Token>& tokens) {
 void print_ast(lval_sptr head, int indent) {
   while (head) {
     switch (head->type) {
-    case (Func):
+    case (Nil):
       std::cout << string(indent,' ')
-		<< "Func:"
-		<< head->data.Symbol
+		<< "Nil"
 		<< "\n";
-      print_ast(head->branch,indent + 2);
+      break;
+    case (Lambda):
+      std::cout << string(indent,' ')
+		<< "Lambda"
+		<< "\n";
       break;
     case (List):
       std::cout << string(indent,' ')
-		<< "List:"
+		<< "List"
 		<< "\n";
-      print_ast(head->branch,indent + 2);
+
       break;
     case (Symbol):
       std::cout << string(indent,' ')
@@ -299,9 +315,17 @@ void print_ast(lval_sptr head, int indent) {
 		<< "\n";
       break;
     case (Float):
-      std::cout << string(indent,' ') << "Float:" << head->data.Float << "\n";
+      std::cout << string(indent,' ')
+		<< "Float:"
+		<< head->data.Float
+		<< "\n";
       break;
     }
+    
+    if (head->branch) {
+      print_ast(head->branch,indent + 2);
+    }
+    
     head = head->next;
   }
 }
