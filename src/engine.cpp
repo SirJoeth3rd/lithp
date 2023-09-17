@@ -98,6 +98,11 @@ void Engine::eval(lval_sptr expr_head) {
 	set_lval(expr_head,fetch_symbol(expr_head->data.Symbol));
       }
       break;
+      //NOTE: CAN JUST CONTINUE IF SYMBOL LOOKUP PRODUCED FUNCTION LVAL
+      //LIKE SO
+      //set_lval(expr_head, .....)
+      //if expr_head.type == lambda {continue}
+      //Then it will evaluate the symbol as well
     case Lambda:
       //Here we do function lookup
       if (is_macro(expr_head->data.Symbol)) {
