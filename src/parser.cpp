@@ -55,9 +55,11 @@ lval_sptr parse_tokens(std::vector<Token>& tokens) {
   auto tok = tokens.begin();
 
   auto inc_head = [&] () mutable {
+    std::cout << "inc head\n";
     prev = head;
     head = std::make_shared<lval>(lval());
     prev->next = head;
+    std::cout << "post inc head\n";
   };
 
   auto get_tok_type = [&] () -> std::string {
@@ -213,11 +215,12 @@ lval_sptr parse_tokens(std::vector<Token>& tokens) {
   };
 
   auto pop_saves = [&]() mutable {
-    std::cout << "pop save\n";
+    std::cout << "pop saves\n";
     prev->next = nullptr;
     head = saves.top();
     saves.pop();
     prev = head->prev;
+    std::cout << "post pop saves\n";
   };
 
   parse_list = [&]() mutable {
@@ -268,11 +271,14 @@ lval_sptr parse_tokens(std::vector<Token>& tokens) {
     pop_saves();
     
     inc_head();
-    
+
+    std::cout << "pre tok++\n";
     tok++;
+    std::cout << "post tok++\n";
   };
 
   parse_expr();
+  std::cout << "DONE PARSING\n"; 
   prev->next = nullptr;
   return root;
 }

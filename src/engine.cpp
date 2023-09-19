@@ -96,7 +96,7 @@ void Engine::eval(lval_sptr head) {
 	eval(head);
       } else {
 	eval(head->branch);
-	head = call_func(head);
+	*head = *call_func(head);
       }
     default:
       //just leave values alone like Nil and Int
@@ -112,9 +112,11 @@ void Engine::set_lval(lval_sptr x, lval_sptr y) {
   }
   auto next = y->next ? y->next : x->next;
   auto prev = y->prev ? y->prev : x->prev;
+  auto branch = y->branch ? y->branch : x->branch;
   *x = *y;
   x->next = next;
   x->prev = prev;
+  x->branch = branch;
 }
 
 lval_sptr Engine::fetch_symbol(const char* name) {
@@ -153,6 +155,21 @@ void Engine::subscribe_macro(lithp_func func, const char *name) {
   symbol_table.insert_global(name, std::make_unique<lval>(lambda));
 }
 
+//custom function declarations here
+lval_sptr plus(lval_sptr head, Engine* engine) {
+  int total = 0;
+  while (head) {
+    if (head->type == Int) {
+      total += head->data.Int;
+    } else {
+      //wud
+    }
+    head = head->next;
+  }
+  auto result = lval(nullptr, nullptr, nullptr, Int, total);
+  return std::make_unique<lval>(result);
+}
+
 //custom function declarations
 /*
 lval_sptr plus(lval_sptr head, Engine* engine) {
@@ -169,7 +186,9 @@ lval_sptr plus(lval_sptr head, Engine* engine) {
   lval_sptr ret_val = lval(nullptr, nullptr, nullptr, Int, (ldata)total);
   return ret_val;
 };
+*/
 
+/*
 lval_sptr mul(const lval_sptr head, Engine* engine) {
   int total = 1;
   while (head) {
@@ -183,6 +202,7 @@ lval_sptr mul(const lval_sptr head, Engine* engine) {
   lval_sptr ret_val = new lval{nullptr, nullptr, nullptr, total, Int};
   return ret_val;
 }
+*/
 
 lval_sptr set(const lval_sptr head,Engine* engine) {
   //we expect a symbol name first and a lval_sptr
@@ -191,13 +211,14 @@ lval_sptr set(const lval_sptr head,Engine* engine) {
   }
 
   const char* name = head->data.Symbol;
-  engine->set_symbol(name, head->next);
+  engine->set_symbol(head->next, name);
   
-  return nullptr;
+  return std::make_unique<lval>();
 }
-*/
+
 
 int main() {
+  /*
   string test = "h(f(g,88,[1,2,3]),[9])(hello, world)])";
 
   std::vector<Token> tokens = tokenize(test);
@@ -209,18 +230,18 @@ int main() {
   std::cout << "==========PRINT_AST==========\n";
   print_ast(root);
 
-  /*
+  */
   std::cout << "==========EVUALATOR TEST========" << '\n';
   Engine engine;
   engine.subscribe_func(plus, "plus");
-  engine.subscribe_func(mul, "mul");
-  engine.subscribe_func(set, "set");
+  // engine.subscribe_func(mul, "mul");
+  // engine.subscribe_func(set, "set");
 
-  engine.parse_push("set(x,2)");
-  engine.eval_top();
-  engine.parse_push("plus(x,2)");
+  // engine.parse_push("set(x,2)");
+  // engine.eval_top();
+  engine.parse_push("plus(2,2)");
   engine.eval_top();
   lval_sptr top = engine.pop();
   std::cout << top->data.Int << std::endl;
-  */
+  
 }
