@@ -86,13 +86,15 @@ void Engine::eval(lval_sptr head) {
     switch (head->type) {
     case Symbol:
       //do symbol lookup
-      set_lval(head, fetch_symbol(head->data.Symbol));
-      //re-eval head
-      continue;
+      if (symbol_table.count(head->data.Symbol)) {
+	set_lval(head, fetch_symbol(head->data.Symbol));
+	//re-eval head
+	continue;
+      }
       break;
     case Lambda:
       if (head->is_macro) {
-	head = call_func(head);
+	*head = *call_func(head);
 	eval(head);
       } else {
 	eval(head->branch);
@@ -170,23 +172,45 @@ lval_sptr plus(lval_sptr head, Engine* engine) {
   return std::make_unique<lval>(result);
 }
 
-//custom function declarations
-/*
-lval_sptr plus(lval_sptr head, Engine* engine) {
-  int total = 0;
-  while (head) {
-    if (head->type == Int) {
-      total += head->data.Int;
-    } else {
-      //do the error thing over here
-    }
-    head = head->next;
+lval_sptr with(lval_sptr head, Engine* engine) {
+  //first arg has the shape [[symbol expr]]
+  //second arg is the body
+  //I think it's a good time to start building the ast manipulation library
+  auto args = head->branch;
+  auto body = head->next;
+  engine->push_namespace();
+  while (args) {
+    engine->set_symbol(args->branch->next,args->branch->data.Symbol);
+    args = args->next;
   }
-  
-  lval_sptr ret_val = lval(nullptr, nullptr, nullptr, Int, (ldata)total);
-  return ret_val;
-};
-*/
+  engine->eval(body);
+  engine->pop_namespace();
+  return body;
+}
+
+lval_sptr function(lval_sptr head, Engine* engine) {
+  auto lambda = [=](lval_sptr h, Engine* e) {
+    auto argnames = head;
+    auto args = h;
+    auto body = head->next;
+
+    e->push_namespace();
+
+    while (argnames) {
+      engine->set_symbol(args, argnames->data.Symbol);
+      argnames = argnames->next;
+      args = args->next;
+    }
+
+    engine->eval(body);
+
+    return body;
+  };
+
+  lval lamb = lval(nullptr, nullptr, nullptr, Lambda, 0);
+  lamb.lambda = lambda;
+  return std::make_unique<lval>(lamb);
+}
 
 /*
 lval_sptr mul(const lval_sptr head, Engine* engine) {
@@ -204,7 +228,7 @@ lval_sptr mul(const lval_sptr head, Engine* engine) {
 }
 */
 
-lval_sptr set(const lval_sptr head,Engine* engine) {
+lval_sptr set(lval_sptr head,Engine* engine) {
   //we expect a symbol name first and a lval_sptr
   if (head->type != Symbol){
     //wud?
@@ -213,7 +237,7 @@ lval_sptr set(const lval_sptr head,Engine* engine) {
   const char* name = head->data.Symbol;
   engine->set_symbol(head->next, name);
   
-  return std::make_unique<lval>();
+  return std::make_unique<lval>(lval());
 }
 
 
@@ -235,11 +259,13 @@ int main() {
   Engine engine;
   engine.subscribe_func(plus, "plus");
   // engine.subscribe_func(mul, "mul");
-  // engine.subscribe_func(set, "set");
+  engine.subscribe_func(set, "set");
+  engine.subscribe_macro(with, "with");
+  engine.subscribe_macro(function, "function");
 
-  // engine.parse_push("set(x,2)");
-  // engine.eval_top();
-  engine.parse_push("plus(2,2)");
+  engine.parse_push("set(p,function([x,y],plus(x,y)))");
+  engine.eval_top();
+  engine.parse_push("p(2,3)");
   engine.eval_top();
   lval_sptr top = engine.pop();
   std::cout << top->data.Int << std::endl;
