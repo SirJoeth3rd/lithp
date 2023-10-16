@@ -16,8 +16,8 @@ lval_sptr SymbolLookup::operator[](const char* name) {
       if (sym_tab->count(name)) {
 	return (*sym_tab)[name];
       }
-    }
-    return (*table.end())[name];
+  }
+  return (*table.end())[name];
 }
 
 void SymbolLookup::insert(const char* name, lval_sptr item) {
@@ -188,30 +188,6 @@ lval_sptr with(lval_sptr head, Engine* engine) {
   return body;
 }
 
-lval_sptr function(lval_sptr head, Engine* engine) {
-  auto lambda = [=](lval_sptr h, Engine* e) {
-    auto argnames = head;
-    auto args = h;
-    auto body = head->next;
-
-    e->push_namespace();
-
-    while (argnames) {
-      engine->set_symbol(args, argnames->data.Symbol);
-      argnames = argnames->next;
-      args = args->next;
-    }
-
-    engine->eval(body);
-
-    return body;
-  };
-
-  lval lamb = lval(nullptr, nullptr, nullptr, Lambda, 0);
-  lamb.lambda = lambda;
-  return std::make_unique<lval>(lamb);
-}
-
 /*
 lval_sptr mul(const lval_sptr head, Engine* engine) {
   int total = 1;
@@ -261,11 +237,8 @@ int main() {
   // engine.subscribe_func(mul, "mul");
   engine.subscribe_func(set, "set");
   engine.subscribe_macro(with, "with");
-  engine.subscribe_macro(function, "function");
 
-  engine.parse_push("set(p,function([x,y],plus(x,y)))");
-  engine.eval_top();
-  engine.parse_push("p(2,3)");
+  engine.parse_push("with([[x,2],[y,3]],plus(x,y))");
   engine.eval_top();
   lval_sptr top = engine.pop();
   std::cout << top->data.Int << std::endl;

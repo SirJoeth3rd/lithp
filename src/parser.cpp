@@ -16,6 +16,42 @@ lval::lval(lval_sptr n, lval_sptr p, lval_sptr b, ltype t, ldata d) {
   data = d;
 }
 
+lval::lval(ltype t) {
+  type = t;
+}
+
+lval::lval(ltype t, ldata v) {
+  type = t;
+  data = v;
+}
+
+lval_sptr lval::operator&() {
+  return std::make_unique<lval>(*this);
+}
+
+void lval::operator[](lval_sptr br) {
+  this->branch = br;
+}
+
+void lval::operator[](lval& l) {
+  this->branch = &l;
+}
+
+lval lval::operator++() {
+  return *(this->next);
+}
+
+//this is a very expensive operation
+//but thats what you get for working with linked-lists
+lval lval::operator>>(lval& l) {
+  lval head = *this;
+  while (head.next) {
+    ++head;
+  }
+  head.next = &l;
+  return *this;
+}
+
 lval::~lval() {
   //TODO this needs to delete the memory of string or symbol
 };
