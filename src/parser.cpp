@@ -37,19 +37,63 @@ void lval::operator[](lval& l) {
   this->branch = &l;
 }
 
-lval lval::operator++() {
-  return *(this->next);
-}
-
 //this is a very expensive operation
 //but thats what you get for working with linked-lists
-lval lval::operator>>(lval& l) {
-  lval head = *this;
-  while (head.next) {
-    ++head;
+void lval::operator>>(lval& l) {
+  lval_sptr head = &(*this);
+  while (head->next) {
+   head = head->next;
   }
-  head.next = &l;
-  return *this;
+  head->next = &l;
+  l.prev = head;
+}
+
+void lval::operator>>(lval_sptr l) {
+  lval_sptr head = &(*this);
+  while (head->next) {
+    head = head->next;
+  }
+  head->next = l;
+  l->prev = head;
+}
+
+void lval::insert_next(lval_sptr l) {
+  this->next = l;
+  l->prev = &(*this);
+}
+
+lval_sptr lval::get_last() {
+  lval_sptr head = &(*this);
+  while (head->next) {
+    head = head->next;
+  }
+  return head;
+}
+
+void lval::insert_branch(lval_sptr b) {
+  this->branch = b;
+  b->prev = &(*this);
+} 
+
+void lval::replace(lval_sptr l) {
+  lval_sptr last = l->get_last();
+  if (this->prev) {
+    this->prev->next = l;
+    l->prev = this->prev;
+  }
+  if (this->next) { 
+    this->next->prev = last;
+    last->next = this->next;
+  }
+}
+
+lval_sptr lval::copy() {
+  lval copy;
+  copy.type = this->type;
+  copy.data = this->data; //fuck
+  copy.lambda = this->lambda;
+  copy.is_macro = this->is_macro;
+  return &copy;
 }
 
 lval::~lval() {

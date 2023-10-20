@@ -59,6 +59,7 @@ Engine::~Engine() {
 void Engine::parse_push(const string& expr){
   std::vector<Token> tokens = tokenize(expr);
   lval_sptr root = parse_tokens(tokens);
+  print_ast(root);
   exprs.push(root);
 }
 
@@ -94,11 +95,15 @@ void Engine::eval(lval_sptr head) {
       break;
     case Lambda:
       if (head->is_macro) {
-	*head = *call_func(head);
-	eval(head);
+	bool re_eval = head->re_eval;
+	(*head).replace(call_func(head));
+	head = head->prev->next; //now head should be garbage collected
+	if (re_eval) {
+	  continue;
+	}
       } else {
 	eval(head->branch);
-	*head = *call_func(head);
+	(*head).replace(call_func(head));
       }
     default:
       //just leave values alone like Nil and Int
@@ -154,6 +159,16 @@ void Engine::subscribe_macro(lithp_func func, const char *name) {
   lambda.is_macro = true;
   lambda.lambda = func;
   lambda.type = Lambda;
+  lambda.re_eval = true;
+  symbol_table.insert_global(name, std::make_unique<lval>(lambda));
+}
+
+void Engine::subscribe_macro_no_re_eval(lithp_func func, const char *name) {
+  lval lambda = lval();
+  lambda.is_macro = true;
+  lambda.lambda = func;
+  lambda.type = Lambda;
+  lambda.re_eval = false;
   symbol_table.insert_global(name, std::make_unique<lval>(lambda));
 }
 
@@ -186,6 +201,50 @@ lval_sptr with(lval_sptr head, Engine* engine) {
   engine->eval(body);
   engine->pop_namespace();
   return body;
+}
+
+class lfunction_store {
+public:
+  lval_sptr operator()(lval_sptr head, Engine* e) {
+    lval_sptr args_lists = &lval(List);
+    lval_sptr alist_head = args_lists;
+    while (head) {
+      args_lists->insert_branch(args->copy());
+      args_lists->branch->insert_next(head->copy());
+      head = head->next;
+      args = args->next;
+      args_lists->insert_next(&lval(List));
+      args_lists = args_lists->next;
+    }
+    args_lists = args_lists->prev;
+    args_lists->insert_next(body);
+    lval_sptr ARGS = &lval(List);
+    ARGS->insert_branch(alist_head);
+    WITH->insert_branch(ARGS);
+    return WITH;
+  }
+
+  lfunction_store(lval_sptr a, lval_sptr b) {
+    args = a;
+    body = b;
+    WITH = &lval(Lambda);
+    WITH->lambda = with;
+  }
+  
+private:
+  lval_sptr args;
+  lval_sptr body;
+  lval_sptr WITH;
+};
+
+lval_sptr function(lval_sptr head, Engine* e) {
+  lfunction_store stored_func = lfunction_store(
+						head->branch,
+						head->branch->next);
+  lval_sptr ret = &lval(Lambda);
+  ret->lambda = stored_func;
+  ret->is_macro = false;
+  return ret;
 }
 
 /*
@@ -237,8 +296,11 @@ int main() {
   // engine.subscribe_func(mul, "mul");
   engine.subscribe_func(set, "set");
   engine.subscribe_macro(with, "with");
+  engine.subscribe_macro_no_re_eval(function, "function");
 
-  engine.parse_push("with([[x,2],[y,3]],plus(x,y))");
+  engine.parse_push("set(p, function([x,y], plus(x,y)))");
+  engine.eval_top();
+  engine.parse_push("p(1,2)");
   engine.eval_top();
   lval_sptr top = engine.pop();
   std::cout << top->data.Int << std::endl;
