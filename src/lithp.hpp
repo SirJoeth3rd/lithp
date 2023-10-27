@@ -114,10 +114,15 @@ public:
   void operator>>(lval&);
   void operator>>(lval_sptr);
   void insert_next(lval_sptr);
+  void remove_next();
   lval_sptr get_last();
   void insert_branch(lval_sptr);
-  void replace(lval_sptr);
+  void remove_branch();
+  void replace_links(lval_sptr);
   lval_sptr copy();
+  lval_sptr copy_recurse();
+  void print_full();
+  void print_full(std::string);
 };
 
 lval_sptr parse_tokens(std::vector<Token>&);

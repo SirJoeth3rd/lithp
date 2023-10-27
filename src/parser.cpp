@@ -62,6 +62,14 @@ void lval::insert_next(lval_sptr l) {
   l->prev = &(*this);
 }
 
+void lval::remove_next() {
+  auto next = this->next;
+  if (next) {
+    this->next = nullptr;
+    next->prev = nullptr;
+  }
+}
+
 lval_sptr lval::get_last() {
   lval_sptr head = &(*this);
   while (head->next) {
@@ -73,9 +81,17 @@ lval_sptr lval::get_last() {
 void lval::insert_branch(lval_sptr b) {
   this->branch = b;
   b->prev = &(*this);
-} 
+}
 
-void lval::replace(lval_sptr l) {
+void lval::remove_branch() {
+  if (this->branch) {
+    auto branch = this->branch;
+    this->branch = nullptr;
+    branch->prev = nullptr;
+  }
+}
+
+void lval::replace_links(lval_sptr l) {
   lval_sptr last = l->get_last();
   if (this->prev) {
     this->prev->next = l;
@@ -94,6 +110,35 @@ lval_sptr lval::copy() {
   copy.lambda = this->lambda;
   copy.is_macro = this->is_macro;
   return &copy;
+}
+
+lval_sptr lval::copy_recurse() {
+  lval_sptr self = &(*this);
+  lval_sptr copy;
+  copy = self->copy();
+  lval_sptr start = copy;
+  if (self->branch) {
+    copy->insert_branch(self->branch->copy_recurse());
+  }
+  while (self->next) {
+    if (self->branch) {
+      copy->insert_branch(self->branch->copy_recurse());
+    }
+    copy->insert_next(self->next->copy());
+    copy = copy->next;
+    self = self->next;
+  }
+  return start;
+}
+
+void lval::print_full() {
+  lval_sptr head = &(*this);
+  print_ast(head);
+}
+
+void lval::print_full(std::string str) {
+  std::cout << str << "\n";
+  this->print_full();
 }
 
 lval::~lval() {
@@ -374,6 +419,10 @@ void print_ast(lval_sptr head, int indent) {
     case (Lambda):
       std::cout << string(indent,' ')
 		<< "Lambda"
+		<< ":"
+		<< (head->is_macro ? "macro" : "function")
+		<< ":"
+		<< (head->re_eval ? "re-eval" : "no-re-eval")
 		<< "\n";
       break;
     case (List):

@@ -83,6 +83,7 @@ lval_sptr Engine::call_func(lval_sptr lambda_lval) {
 }
 
 void Engine::eval(lval_sptr head) {
+  lval_sptr result;
   while (head) {
     switch (head->type) {
     case Symbol:
@@ -96,14 +97,19 @@ void Engine::eval(lval_sptr head) {
     case Lambda:
       if (head->is_macro) {
 	bool re_eval = head->re_eval;
-	(*head).replace(call_func(head));
-	head = head->prev->next; //now head should be garbage collected
+	result = call_func(head);
+	head->replace_links(result);
+	*head = *result; //now previous head should be garbage collected
 	if (re_eval) {
+	  head->print_full("PRE RE-EVAL");
 	  continue;
 	}
       } else {
 	eval(head->branch);
-	(*head).replace(call_func(head));
+	head->print_full("PRE FUNC CALL");
+	lval_sptr result = call_func(head);
+	head->replace_links(result);
+	*head = *result;
       }
     default:
       //just leave values alone like Nil and Int
@@ -208,6 +214,8 @@ public:
   lval_sptr operator()(lval_sptr head, Engine* e) {
     lval_sptr args_lists = &lval(List);
     lval_sptr alist_head = args_lists;
+    std::cout << "HEAD\n";
+    head->print_full();
     while (head) {
       args_lists->insert_branch(args->copy());
       args_lists->branch->insert_next(head->copy());
@@ -217,17 +225,20 @@ public:
       args_lists = args_lists->next;
     }
     args_lists = args_lists->prev;
-    args_lists->insert_next(body);
+    alist_head->next->next = nullptr;
     lval_sptr ARGS = &lval(List);
     ARGS->insert_branch(alist_head);
+    ARGS->insert_next(body);
     WITH->insert_branch(ARGS);
+    WITH->print_full("=WITH");
     return WITH;
   }
 
   lfunction_store(lval_sptr a, lval_sptr b) {
-    args = a;
-    body = b;
+    args = a->copy_recurse();
+    body = b->copy_recurse();
     WITH = &lval(Lambda);
+    WITH->is_macro = true;
     WITH->lambda = with;
   }
   
@@ -240,10 +251,11 @@ private:
 lval_sptr function(lval_sptr head, Engine* e) {
   lfunction_store stored_func = lfunction_store(
 						head->branch,
-						head->branch->next);
+						head->next);
   lval_sptr ret = &lval(Lambda);
   ret->lambda = stored_func;
-  ret->is_macro = false;
+  ret->is_macro = true;
+  ret->re_eval = true;
   return ret;
 }
 
