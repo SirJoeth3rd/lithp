@@ -1,13 +1,13 @@
 ODIR = ../obj
 
-run: engine
-	./engine_test
+run: lithp
+	./lithp_test
 
-engine: engine.o parser.o tokenizer.o
-	g++ -o engine_test -I $(ODIR) $(ODIR)/*.o
+lithp: lithp.o parser.o tokenizer.o
+	g++ -o lithp_test -I $(ODIR) $(ODIR)/*.o
 
-engine.o: engine.cpp
-	g++ -c -g engine.cpp -o $(ODIR)/engine.o
+lithp.o: lithp.cpp
+	g++ -c -g lithp.cpp -o $(ODIR)/lithp.o
 
 parser.o: parser.cpp
 	g++ -c -g parser.cpp -o $(ODIR)/parser.o

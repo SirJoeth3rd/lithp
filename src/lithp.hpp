@@ -1,129 +1,104 @@
 #pragma once
 
-#include <cctype>
+#include <memory>
+#include <variant>
+#include <functional>
 #include <string>
 #include <vector>
-#include <typeinfo>
 #include <iostream>
-#include <ctype.h>
-#include <cstring>
-#include <functional>
-#include <stdexcept>
-#include <stack>
 #include <map>
-#include <memory>
-
-#include "tokenizer.hpp"
+#include <stack>
 
 using std::string;
 
 class lval;
-class Engine;
-
-struct StrCompare : public std::binary_function<const char*, const char*, bool> {
-public:
-    bool operator() (const char* str1, const char* str2) const
-    { return std::strcmp(str1, str2) < 0; }
-};
+class lithp_engine;
 
 typedef std::shared_ptr<lval> lval_sptr;
-typedef std::function<lval_sptr(lval_sptr, Engine*)> lithp_func;
+typedef std::weak_ptr<lval> lval_wptr;
+typedef std::function<lval_sptr(lval_sptr, lithp_engine*)> lithp_func;
+typedef std::variant<std::monostate, int, double, string, lithp_func> lval_data;
 
-class SymbolLookup {
-public:
-  SymbolLookup();
-  ~SymbolLookup();
-  lval_sptr operator[](const char* name);
-  int count(const char* name);
-  void push_namespace();
-  void pop_namespace();
-  void insert(const char*,lval_sptr);
-  void insert_global(const char*, lval_sptr);
-private:
-  std::vector<std::map<const char*, lval_sptr,StrCompare>> table;
-};
-
-class Engine {
-public:
-  Engine();
-  ~Engine();
-  void parse_push(const string& expr);
-  lval_sptr pop();
-  void eval_top();
-  lval_sptr call_func(lval_sptr);
-  void eval(lval_sptr expr_head);
-  void set_lval(lval_sptr x, lval_sptr y);
-  lval_sptr fetch_symbol(const char* name);
-  void set_symbol(lval_sptr val, const char* name);
-  void set_symbol_global(lval_sptr val, const char* name);
-  void push_namespace();
-  void pop_namespace();
-  void subscribe_func(lithp_func, const char* name);
-  void subscribe_macro(lithp_func, const char* name);
-  void subscribe_macro_no_re_eval(lithp_func, const char* name);
-
-
-  
-private:
-  SymbolLookup symbol_table;
-  std::stack<lval_sptr> exprs;
-};
-
-enum ltype {
-  Int,
-  Float,
-  String,
+enum lval_type {
   Symbol,
-  List,
+  String,
+  Float,
+  Int,
   Lambda,
-  Nil
+  Nil,
+  List
 };
 
-union ldata {
-  int Int;
-  float Float;
-  char* String;
-  const char* Symbol;
+string lval_type_to_string(lval_type);
+void newline();
+void print_tree(lval_sptr, int indent = 0);
+lval_sptr parse_string(const string&);
 
-  ldata() = default;
+class lval : public std::enable_shared_from_this<lval> {
+private:
+  lval_sptr next = nullptr;
+  lval_sptr branch = nullptr;
+  lval_wptr prev;
 
-  ldata(int x) {
-    Int = x;
-  }
-};
-
-class lval {
 public:
-  ~lval();
-  lval_sptr next;
-  lval_sptr prev;
-  lval_sptr branch;
-  ltype type;
-  ldata data; //for static data
-  lithp_func lambda;
+  lval_data data;
+  lval_type type;
   bool is_macro;
-  bool re_eval;
-  void set_lamdba(lithp_func);
+
   lval();
-  lval(lval_sptr, lval_sptr, lval_sptr, ltype, ldata);
-  lval(ltype, ldata);
-  lval(ltype);
+  lval(lval_type tp);
+  lval(lval_type, lval_data);
+  lval(lval_type, lval_data, lval_sptr, lval_sptr, lval_sptr);
+  lval(lval_sptr);
+  void set_macro(bool);
   lval_sptr operator&();
-  void operator[](lval_sptr);
-  void operator[](lval&);
-  void operator>>(lval&);
-  void operator>>(lval_sptr);
+  lval_sptr get_next();
   void insert_next(lval_sptr);
   void remove_next();
-  lval_sptr get_last();
+  bool has_next();
+  lval_sptr get_prev();
+  void insert_prev(lval_sptr);
+  void insert_prev_branch(lval_sptr);
+  void remove_prev();
+  bool has_prev();
   void insert_branch(lval_sptr);
-  void remove_branch();
-  void replace_links(lval_sptr);
-  lval_sptr copy();
-  lval_sptr copy_recurse();
-  void print_full();
-  void print_full(std::string);
+  lval_sptr get_branch();
+  bool has_branch();
+  void replace_in_list(lval_sptr);
+  void replace_in_list_with_branch(lval_sptr);
+  lval clone();
+  lval_sptr clone_recurse();
+  void print_content();
+  void print_address();
 };
 
-lval_sptr parse_tokens(std::vector<Token>&);
-void print_ast(lval_sptr, int x = 0);
+//TODO support for named namespaces
+class lval_symbol_table {
+public:
+  lval_symbol_table();
+  lval_sptr operator[](string);
+  int count(string);
+  void set(string, lval_sptr);
+  void set_global(string, lval_sptr);
+  void push_namespace();
+  void pop_namespace();
+  int count();
+private:
+  std::vector<std::map<string, lval_sptr>> internal_map;
+};
+
+class lithp_engine {
+public:
+  void parse_push(const string&);
+  lval_sptr pop();
+  void eval_top();
+  void eval(lval_sptr);
+  lval_sptr call_func(lval_sptr, lithp_engine*);
+  void set_symbol(string, lval_sptr);
+  void set_global(string, lval_sptr);
+  void push_namespace();
+  void pop_namespace();
+private:
+  std::stack<lval_sptr> exprs;
+  lval_symbol_table symbol_table = lval_symbol_table();
+};

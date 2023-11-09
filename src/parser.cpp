@@ -1,468 +1,241 @@
-// #include "parser.hpp"
-#include "tokenizer.hpp"
 #include "lithp.hpp"
+#include "tokenizer.hpp"
 
-using std::string;
+lval_sptr root;
+lval_sptr prev;
+lval_sptr head;
+std::stack<lval_sptr> saves;
+std::vector<Token>::iterator tok;
+std::vector<Token>::iterator tok_end;
 
-lval::lval() {
-  type = Nil;
-}
+bool DO_LOGGING = false;
 
-lval::lval(lval_sptr n, lval_sptr p, lval_sptr b, ltype t, ldata d) {
-  next = n;
-  prev = p;
-  branch = b;
-  type = t;
-  data = d;
-}
-
-lval::lval(ltype t) {
-  type = t;
-}
-
-lval::lval(ltype t, ldata v) {
-  type = t;
-  data = v;
-}
-
-lval_sptr lval::operator&() {
-  return std::make_unique<lval>(*this);
-}
-
-void lval::operator[](lval_sptr br) {
-  this->branch = br;
-}
-
-void lval::operator[](lval& l) {
-  this->branch = &l;
-}
-
-//this is a very expensive operation
-//but thats what you get for working with linked-lists
-void lval::operator>>(lval& l) {
-  lval_sptr head = &(*this);
-  while (head->next) {
-   head = head->next;
-  }
-  head->next = &l;
-  l.prev = head;
-}
-
-void lval::operator>>(lval_sptr l) {
-  lval_sptr head = &(*this);
-  while (head->next) {
-    head = head->next;
-  }
-  head->next = l;
-  l->prev = head;
-}
-
-void lval::insert_next(lval_sptr l) {
-  this->next = l;
-  l->prev = &(*this);
-}
-
-void lval::remove_next() {
-  auto next = this->next;
-  if (next) {
-    this->next = nullptr;
-    next->prev = nullptr;
+void log(const string& str) {
+  if (DO_LOGGING) {
+    std::cout << str;
   }
 }
-
-lval_sptr lval::get_last() {
-  lval_sptr head = &(*this);
-  while (head->next) {
-    head = head->next;
-  }
-  return head;
-}
-
-void lval::insert_branch(lval_sptr b) {
-  this->branch = b;
-  b->prev = &(*this);
-}
-
-void lval::remove_branch() {
-  if (this->branch) {
-    auto branch = this->branch;
-    this->branch = nullptr;
-    branch->prev = nullptr;
-  }
-}
-
-void lval::replace_links(lval_sptr l) {
-  lval_sptr last = l->get_last();
-  if (this->prev) {
-    this->prev->next = l;
-    l->prev = this->prev;
-  }
-  if (this->next) { 
-    this->next->prev = last;
-    last->next = this->next;
-  }
-}
-
-lval_sptr lval::copy() {
-  lval copy;
-  copy.type = this->type;
-  copy.data = this->data; //fuck
-  copy.lambda = this->lambda;
-  copy.is_macro = this->is_macro;
-  return &copy;
-}
-
-lval_sptr lval::copy_recurse() {
-  lval_sptr self = &(*this);
-  lval_sptr copy;
-  copy = self->copy();
-  lval_sptr start = copy;
-  if (self->branch) {
-    copy->insert_branch(self->branch->copy_recurse());
-  }
-  while (self->next) {
-    if (self->branch) {
-      copy->insert_branch(self->branch->copy_recurse());
-    }
-    copy->insert_next(self->next->copy());
-    copy = copy->next;
-    self = self->next;
-  }
-  return start;
-}
-
-void lval::print_full() {
-  lval_sptr head = &(*this);
-  print_ast(head);
-}
-
-void lval::print_full(std::string str) {
-  std::cout << str << "\n";
-  this->print_full();
-}
-
-lval::~lval() {
-  //TODO this needs to delete the memory of string or symbol
+void inc_head(){
+  log("inc head\n");
+  prev = head;
+  head->insert_next(std::make_shared<lval>(lval()));
+  head = head->get_next();
 };
 
-string ltype_to_string(ltype type) {
-  switch (type) {
-  case Int:
-    return "Int";
-  case Float:
-    return "Float";
-  case String:
-    return "String";
-  case Symbol:
-    return "Symbol";
-  case List:
-    return "List";
-  case Nil:
-    return "Nil";
-  case Lambda:
-    return "Lambda";
+string get_tok_type() {
+  return tok_type_to_string(tok->Type);
+};
+
+void expect(Token::tok_type type) {
+  log("expect = " + tok_type_to_string(type) + '\n');
+  if (tok->Type != type) {
+    std::string err = "\nInvalid token type\n  Expected ";
+    err += tok_type_to_string(type);
+    err += "\n  But got ";
+    err += tok_type_to_string(tok->Type);
+    err += '\n';
+    throw std::invalid_argument(err);
   }
-  return "";
+  tok++;
 }
 
-lval_sptr parse_tokens(std::vector<Token>& tokens) {
-  //TODO: BIGGIE We need better error handling here
-  lval_sptr root = std::make_shared<lval>(lval());
-  lval_sptr prev = nullptr;
-  lval_sptr head = root;
-  
-  std::stack<lval_sptr> funcs;
-  std::stack<lval_sptr> lists;
+void parse_int() {
+  log("parse_int\n");
+  log("  value = " + (string) tok->val +'\n');
+  lval_data data = std::atoi(tok->val);
+  *head = lval(Int, data);
+  tok++;
+};
 
-  std::stack<lval_sptr> saves;
+void parse_float() {
+  log("parse_float\n");
+  log("  value = " + (string) tok->val +'\n');
+  lval_data data = std::atof(tok->val);
+  *head = lval(Float, data);
+  tok++;
+};
 
-  auto END = tokens.end();
-  auto tok = tokens.begin();
+void parse_string() {
+  log("parse_string\n");
+  log("  value = " + (string) tok->val +'\n');
+  lval_data data = string(tok->val);
+  *head = lval(String, data);
+  tok++;
+};
 
-  auto inc_head = [&] () mutable {
-    std::cout << "inc head\n";
-    prev = head;
-    head = std::make_shared<lval>(lval());
-    prev->next = head;
-    std::cout << "post inc head\n";
-  };
+void parse_symbol() {
+  log("parse_symbol\n");
+  log("  value = " + (string) tok->val +'\n');
+  lval_data data = (string) tok->val;
+  *head = lval(Symbol,data);
+  tok++;
+};
 
-  auto get_tok_type = [&] () -> std::string {
-    return tok_type_to_string(tok->Type);
-  };
-
-  auto expect = [&] (Token::tok_type type) mutable {
-    std::cout << "expect = " << tok_type_to_string(tok->Type) << '\n';
-    if (tok->Type != type) {
-      std::string err = "\nInvalid token type\n  Expected ";
-      err += tok_type_to_string(type);
-      err += "\n  But got ";
-      err += tok_type_to_string(tok->Type);
-      err += '\n';
-      throw std::invalid_argument(err);
-    }
-    tok++;
-  };
-    
-  auto parse_int = [&]() mutable {
-    std::cout << "parse_int\n";
-    std::cout << "  value = " << tok->val << '\n';
-    ldata data;
-    data.Int = std::atoi(tok->val);
-    *head = lval(nullptr, prev, nullptr, Int, data);
+void parse_atom() {
+  log("parse_atom\n");
+  switch (tok->Type) {
+  case Token::Symbol:
+    parse_symbol();
     inc_head();
-    tok++;
-  };
-
-  auto parse_float = [&]() mutable {
-    std::cout << "parse_float\n";
-    std::cout << "  value = " << tok->val << '\n';
-    ldata data;
-    data.Float = std::atof(tok->val);
-    *head = lval(nullptr, prev, nullptr, Float, data);
+    break;
+  case Token::Int:
+    parse_int();
     inc_head();
-    tok++;
-  };
-
-  auto parse_string = [&]() mutable {
-    std::cout << "parse_string\n";
-    std::cout << "  value = " << tok->val << '\n';
-    ldata data;
-    data.String = (char*)tok->val;
-    *head = lval(nullptr,prev,nullptr,String,data);
+    break;
+  case Token::String:
+    parse_string();
     inc_head();
-    tok++;
-  };
+    break;
+  case Token::Float:
+    parse_float();
+    inc_head();
+    break;
+  default:
+    throw std::invalid_argument("Expected an atom");
+    break;
+  }
+};
 
-  auto parse_symbol = [&](bool is_func) mutable {
-    std::cout << "parse_symbol\n";
-    std::cout << "  tok_type " << get_tok_type() << '\n';
-    std::cout << "  val " << tok->val << '\n';
-    ldata data;
-    data.Symbol = tok->val;
-    *head = lval(nullptr,prev,nullptr,Symbol,data);
-    if (is_func) {
-      prev = head;
-      head = std::make_shared<lval>(lval());
-      prev->branch = head;
-      funcs.push(prev);
-    } else {
-      inc_head();
-    }
-    tok++;
-  };
-
-  auto parse_atom = [&]() mutable {
-    std::cout << "parse_atom\n";
-    switch (tok->Type) {
-    case Token::Symbol:
-      parse_symbol(false);
-      break;
-    case Token::Int:
-      parse_int();
-      break;
-    case Token::String:
-      parse_string();
-      break;
-    case Token::Float:
-      parse_float();
-      break;
-    default:
-      throw std::invalid_argument("Expected an atom");
-      break;
-    }
-  };
-
-  auto is_func_call = [&]() mutable {
-    std::cout << "is_func_call = ";
-    if (tok->Type != Token::Symbol) {
-      std::cout << "false\n";
-      return false;
-    }
-    tok++;
-    if (tok->Type != Token::LBrack) {
-      std::cout << "false\n";
-      tok--;
-      return false;
-    }
+bool is_func_call() {
+  log("is_func_call = ");
+  if (tok->Type != Token::Symbol) {
+    log("false\n");
+    return false;
+  }
+  tok++;
+  if (tok->Type != Token::LBrack) {
+    log("false\n");
     tok--;
-    std::cout << "true\n";
+    return false;
+  }
+  tok--;
+  log("true\n");
+  return true;
+};
+
+bool is_atom() {
+  log("is_atom\n");
+  log("  tok_type in is_atom " + get_tok_type() + "\n");
+  auto tok_type = tok->Type;
+  switch (tok_type) {
+  case Token::Symbol:
+  case Token::String:
+  case Token::Float:
+  case Token::Int:
     return true;
-  };
-
-  auto is_atom = [&]() mutable {
-    std::cout << "is_atom\n";
-    std::cout << "  tok_type in is_atom " << get_tok_type() << "\n";
-    auto tok_type = tok->Type;
-    switch (tok_type) {
-    case Token::Symbol:
-    case Token::String:
-    case Token::Float:
-    case Token::Int:
-      return true;
-    default:
-      return false;
-    };
-  };
-
-  auto is_list = [&]() mutable {
-    std::cout << "is list\n";
-    auto tok_type = tok->Type;
-    if (tok_type == Token::LBBrack) {
-      return true;
-    }
+  default:
     return false;
   };
+};
 
-  std::function<void()> parse_func;
-  std::function<void()> parse_list;
+bool is_list() {
+  log("is list\n");
+  auto tok_type = tok->Type;
+  if (tok_type == Token::LBBrack) {
+    return true;
+  }
+  return false;
+};
 
-  auto parse_expr = [&]() mutable {
-    //note do not handle tok in here
-    std::cout << "parse_expr\n";
-    if (is_func_call()) {
-      parse_func();
-    } else if (is_atom()){
-      parse_atom();
-    } else if (is_list()) {
-      parse_list();
+void parse_func();
+void parse_list();
+
+void parse_expr() {
+  //note do not handle tok in here
+  log("parse_expr\n");
+  if (is_func_call()) {
+    parse_func();
+  } else if (is_atom()){
+    parse_atom();
+  } else if (is_list()) {
+    parse_list();
+  } else {
+    throw std::logic_error("Syntax error");
+  }
+};
+
+void push_saves() {
+  log("push save\n");
+  saves.push(head);
+  prev = head;
+  head->insert_branch(std::make_shared<lval>(lval()));
+  head = head->get_branch();
+};
+
+void pop_saves() {
+  log("pop saves\n");
+  prev->remove_next();
+  head = saves.top();
+  saves.pop();
+  if (head->has_prev()) {
+    prev = head->get_prev();
+  } else {
+    prev = nullptr;
+  }
+};
+
+void parse_list() {
+  log("parse list\n");
+  expect(Token::LBBrack);
+  
+  *head = lval(List);
+  push_saves();
+  
+  while (tok->Type != Token::RBBrack) {
+    parse_expr();
+    if (tok->Type == Token::RBBrack) {
+      break;
     } else {
-      throw std::logic_error("Syntax error");
+      expect(Token::Comma);
     }
-  };
+  }
 
-  auto push_saves = [&]() mutable {
-    std::cout << "push save\n";
-    prev = head;
-    head = std::make_shared<lval>(lval());
-    prev->branch = head;
-    saves.push(prev);    
-  };
-
-  auto pop_saves = [&]() mutable {
-    std::cout << "pop saves\n";
-    prev->next = nullptr;
-    head = saves.top();
-    saves.pop();
-    prev = head->prev;
-    std::cout << "post pop saves\n";
-  };
-
-  parse_list = [&]() mutable {
-    expect(Token::LBBrack);
-
-    // *head = lval(nullptr,prev,nullptr,List,0);
-    ldata data;
-    data.Int = 0;
-    *head = lval(nullptr, prev, nullptr, List, data);
-
-    push_saves();
+  pop_saves();
     
-    while (tok->Type != Token::RBBrack) {
-      parse_expr();
-      if (tok->Type == Token::RBBrack) {
-	break;
-      } else {
-	expect(Token::Comma);
-      }
+  inc_head();
+
+  tok++;
+};
+
+void parse_func() {
+  log("parse func\n");
+  parse_symbol();
+  push_saves();
+    
+  expect(Token::LBrack);
+  while (tok->Type != Token::RBrack) {
+    parse_expr();
+    if (tok->Type == Token::RBrack) {
+      break;
+    } else {
+      expect(Token::Comma);
     }
-
-    pop_saves();
-
-    inc_head();
-
-    tok++;
-  };
-
-  parse_func = [&]() mutable {
-    ldata data;
-    data.Symbol = tok->val;
-    *head = lval(nullptr, prev, nullptr, Symbol, data);
-
-    push_saves();
-
-    tok++;
+  }
     
-    expect(Token::LBrack);
-    while (tok->Type != Token::RBrack) {
-      parse_expr();
-      if (tok->Type == Token::RBrack) {
-	break;
-      } else {
-	expect(Token::Comma);
-      }
-    }
-    
-    pop_saves();
-    
-    inc_head();
+  pop_saves();
+  log("post pop\n");
+  inc_head();
+  log("pre tok++\n");
+  tok++;
+  log("post tok++\n");
+};
 
-    std::cout << "pre tok++\n";
-    tok++;
-    std::cout << "post tok++\n";
-  };
+lval_sptr parse_tokens(std::vector<Token>& tokens) {
+  root = std::make_shared<lval>(lval());
+  prev = nullptr;
+  head = root;
+  tok = tokens.begin();
+  tok_end = tokens.end();
 
   parse_expr();
-  std::cout << "DONE PARSING\n"; 
-  prev->next = nullptr;
+
+  //head always initialized to something
+  head->get_prev()->remove_next();
+
   return root;
 }
 
-void print_ast(lval_sptr head, int indent) {
-  while (head) {
-    switch (head->type) {
-    case (Nil):
-      std::cout << string(indent,' ')
-		<< "Nil"
-		<< "\n";
-      break;
-    case (Lambda):
-      std::cout << string(indent,' ')
-		<< "Lambda"
-		<< ":"
-		<< (head->is_macro ? "macro" : "function")
-		<< ":"
-		<< (head->re_eval ? "re-eval" : "no-re-eval")
-		<< "\n";
-      break;
-    case (List):
-      std::cout << string(indent,' ')
-		<< "List"
-		<< "\n";
-
-      break;
-    case (Symbol):
-      std::cout << string(indent,' ')
-		<< "Symbol:"
-		<< head->data.Symbol
-		<< "\n";
-      break;
-    case (String):
-      std::cout << string(indent,' ')
-		<< "String:"
-		<< head->data.String
-		<< "\n";
-      break;
-    case (Int):
-      std::cout << string(indent,' ')
-		<< "Int:"
-		<< head->data.Int
-		<< "\n";
-      break;
-    case (Float):
-      std::cout << string(indent,' ')
-		<< "Float:"
-		<< head->data.Float
-		<< "\n";
-      break;
-    }
-    
-    if (head->branch) {
-      print_ast(head->branch,indent + 2);
-    }
-    
-    head = head->next;
-  }
+lval_sptr parse_string(const string& str) {
+  std::vector<Token> tokens = tokenize(str);
+  return parse_tokens(tokens);
 }
-
-
