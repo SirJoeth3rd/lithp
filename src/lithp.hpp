@@ -43,7 +43,7 @@ private:
 public:
   lval_data data;
   lval_type type;
-  bool is_macro;
+  bool is_macro = false;
 
   lval();
   lval(lval_type tp);

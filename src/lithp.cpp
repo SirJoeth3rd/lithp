@@ -364,6 +364,17 @@ lval_sptr plus(lval_sptr b, lithp_engine* e) {
   return std::make_shared<lval>(lval(Int,result));
 }
 
+lval_sptr mul(lval_sptr b, lithp_engine* e) {
+  int result = 1;
+  while (b) {
+    if (b->type == Int) {
+      result *= std::get<int>(b->data);
+    }
+    b = b->get_next();
+  }
+  return std::make_shared<lval>(lval(Int,result));
+}
+
 lval_sptr with(lval_sptr b, lithp_engine* e) {
   //expect shape with[[[symbol, expr]...],expr]
   lval_sptr args_lists = b->get_branch();
@@ -412,7 +423,6 @@ public:
       alist->remove_prev();
     }
 
-    //TODO: this is still wrong
     With->insert_branch(arg_lists);
     With->get_branch()->insert_next(body->clone_recurse()); //very inefficient
 
@@ -443,6 +453,7 @@ int main() {
   lithp_engine engine;
   
   lval_sptr Plus = std::make_shared<lval>(lval(Lambda,plus));
+  lval_sptr Mul = std::make_shared<lval>(lval(Lambda,mul));
   lval_sptr With = std::make_shared<lval>(lval(Lambda, with));
   lval_sptr Function = std::make_shared<lval>(lval(Lambda, function));
   lval_sptr Set = std::make_shared<lval>(lval(Lambda, set));
@@ -451,13 +462,16 @@ int main() {
   Function->set_macro(true);
 
   engine.set_symbol("plus", Plus);
+  engine.set_symbol("mul", Mul);
   engine.set_symbol("with", With);
   engine.set_symbol("function", Function);
   engine.set_symbol("set", Set);
 
   engine.parse_push("set(f,function([x,y],plus(x,y)))");
   engine.eval_top();
-  engine.parse_push("f(9,3)");
+  engine.parse_push("set(g,function([x,y],mul(x,y)))");
+  engine.eval_top();
+  engine.parse_push("f(2,g(3,3))");
   engine.eval_top();
   lval_sptr top = engine.pop();
   print_tree(top);
