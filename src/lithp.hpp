@@ -20,13 +20,13 @@ typedef std::function<lval_sptr(lval_sptr, lithp_engine*)> lithp_func;
 typedef std::variant<std::monostate, int, double, string, lithp_func> lval_data;
 
 enum lval_type {
-  Symbol,
-  String,
-  Float,
-  Int,
-  Lambda,
-  Nil,
-  List
+  Symbol = 1,
+  String = 2,
+  Float = 4,
+  Int = 8,
+  Lambda = 16,
+  Nil = 32,
+  List = 64
 };
 
 string lval_type_to_string(lval_type);
@@ -34,12 +34,28 @@ void newline();
 void print_tree(lval_sptr, int indent = 0);
 lval_sptr parse_string(const string&);
 
-class lval : public std::enable_shared_from_this<lval> {
+template <typename T>
+class lnode : public std::enable_shared_from_this<T> {
 private:
-  lval_sptr next = nullptr;
-  lval_sptr branch = nullptr;
-  lval_wptr prev;
+  std::shared_ptr<T> next = nullptr;
+  std::shared_ptr<T> branch = nullptr;
+  std::weak_ptr<T> prev;
+public:
+  std::shared_ptr<T> operator&();
+  std::shared_ptr<T> get_next();
+  bool has_next();
+  void insert_next(std::shared_ptr<T>);
+  void remove_next();
+  std::shared_ptr<T> get_prev();
+  void insert_prev(std::shared_ptr<T>);
+  void insert_prev_branch(std::shared_ptr<T>);
+  void remove_prev(std::shared_ptr<T>);
+  void insert_branch(std::shared_ptr<T>);
+  std::shared_ptr<T> get_branch();
+  void has_branch();
+};
 
+class lval : public lnode<lval> {
 public:
   lval_data data;
   lval_type type;
