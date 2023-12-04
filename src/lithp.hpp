@@ -36,7 +36,7 @@ lval_sptr parse_string(const string&);
 
 template <typename T>
 class lnode : public std::enable_shared_from_this<T> {
-private:
+protected:
   std::shared_ptr<T> next = nullptr;
   std::shared_ptr<T> branch = nullptr;
   std::weak_ptr<T> prev;
@@ -47,12 +47,16 @@ public:
   void insert_next(std::shared_ptr<T>);
   void remove_next();
   std::shared_ptr<T> get_prev();
+  bool has_prev();
   void insert_prev(std::shared_ptr<T>);
   void insert_prev_branch(std::shared_ptr<T>);
-  void remove_prev(std::shared_ptr<T>);
+  void remove_prev();
   void insert_branch(std::shared_ptr<T>);
   std::shared_ptr<T> get_branch();
-  void has_branch();
+  bool has_branch();
+  void remove_branch();
+  void replace_in_list(std::shared_ptr<T>);
+  void replace_in_list_with_branch(std::shared_ptr<T>);
 };
 
 class lval : public lnode<lval> {
@@ -68,20 +72,6 @@ public:
   lval(lval_sptr);
   void set_macro(bool);
   lval_sptr operator&();
-  lval_sptr get_next();
-  void insert_next(lval_sptr);
-  void remove_next();
-  bool has_next();
-  lval_sptr get_prev();
-  void insert_prev(lval_sptr);
-  void insert_prev_branch(lval_sptr);
-  void remove_prev();
-  bool has_prev();
-  void insert_branch(lval_sptr);
-  lval_sptr get_branch();
-  bool has_branch();
-  void replace_in_list(lval_sptr);
-  void replace_in_list_with_branch(lval_sptr);
   lval clone();
   lval_sptr clone_recurse();
   void print_content();

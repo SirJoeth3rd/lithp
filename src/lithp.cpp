@@ -34,8 +34,105 @@ void newline() {
   std::cout << std::endl;
 }
 
+template <typename T>
+std::shared_ptr<T> lnode<T>::get_next() {
+  return next;
+}
 
-  
+template <typename T>
+bool lnode<T>::has_next() {
+  return next;
+}
+
+template <typename T>
+void lnode<T>::insert_next(std::shared_ptr<T> nxt) {
+  next = nxt;
+  nxt->prev = this->shared_from_this();
+}
+
+template <typename T>
+void lnode<T>::remove_next() {
+  std::shared_ptr<T> tmp = next;
+  if (next) {
+    next = nullptr;
+    tmp->prev.reset();
+  }
+}
+
+template <typename T>
+std::shared_ptr<T> lnode<T>::get_prev() {
+  return prev.lock();
+}
+
+template <typename T>
+void lnode<T>::insert_prev(std::shared_ptr<T> prv) {
+  prev = prv;
+  prev.lock()->next = this->shared_from_this();
+}
+
+template <typename T>
+void lnode<T>::insert_prev_branch(std::shared_ptr<T> prv) {
+  prv->insert_branch(this->shared_from_this());
+}
+
+template <typename T>
+bool lnode<T>::has_prev() {
+  return prev.expired();
+}
+
+template <typename T>
+void lnode<T>::remove_prev() {
+  if (!prev.expired()) {
+    std::shared_ptr<T> tmp = prev.lock();
+    if (tmp->get_next() == this->shared_from_this()) {
+      tmp->remove_next();
+    } else {
+      tmp->remove_branch();
+    }
+    prev.reset();
+  }
+}
+
+template <typename T>
+void lnode<T>::remove_branch() {
+  std::shared_ptr<T> tmp = branch;
+  if (branch) {
+    branch = nullptr;
+    tmp->prev.reset();
+  }
+}
+
+template <typename T>
+void lnode<T>::insert_branch(std::shared_ptr<T> br) {
+  if (branch) {
+    branch->remove_prev();
+  }
+  branch = br;
+  br->prev = this->shared_from_this();
+}
+
+template <typename T>
+bool lnode<T>::has_branch() {
+  return (bool)branch;
+}
+
+template <typename T>
+void lnode<T>::replace_in_list(std::shared_ptr<T> ln) {
+  std::shared_ptr<T> prev = get_prev();
+  std::shared_ptr<T> next = get_next();
+
+  if (prev) prev->insert_next(ln);
+  if (next) next->insert_next(ln);
+}
+
+template <typename T>
+void lnode<T>::replace_in_list_with_branch(std::shared_ptr<T> ln) {
+  replace_in_list(ln);
+  std::shared_ptr<T> b = get_branch();
+  if (b) ln->insert_branch(b);
+}
+
+ 
 lval::lval() {
   type = Nil;
 }
@@ -67,80 +164,6 @@ void lval::set_macro(bool ismacro) {
 
 lval_sptr lval::operator&() {
   return shared_from_this();
-}
-
-lval_sptr lval::get_next() {
-  return next;
-}
-
-void lval::insert_next(lval_sptr nxt) {
-  next = nxt;
-  nxt->prev = shared_from_this();
-}
-
-void lval::remove_next() {
-  lval_sptr tmp = next;
-  if (next) {
-    next = nullptr;
-    tmp->prev.reset();
-  }
-}
-
-bool lval::has_next() {
-  return (bool)next;
-}
-
-lval_sptr lval::get_prev() {
-  return prev.lock();
-}
-
-void lval::insert_prev(lval_sptr prv) {
-  prev = prv;
-  prv->next = shared_from_this();
-}
-
-void lval::insert_prev_branch(lval_sptr prv) {
-  prv->insert_branch(shared_from_this());
-}
-
-void lval::remove_prev() {
-  if (!prev.expired()) {
-    lval_sptr tmp = prev.lock();
-    tmp->remove_next();
-  }
-  prev.reset();
-}
-
-bool lval::has_prev() {
-  return prev.expired();
-}
-
-void lval::insert_branch(lval_sptr br) {
-  branch = br;
-  br->prev = shared_from_this();
-}
-
-lval_sptr lval::get_branch() {
-  return branch;
-}
-
-bool lval::has_branch() {
-  return (bool) branch;
-}
-
-void lval::replace_in_list(lval_sptr n) {
-  lval_sptr prev = get_prev();
-  lval_sptr next = get_next();
-  if (prev)
-    prev->insert_next(n);
-  if (next)
-    next->insert_prev(n);
-}
-
-void lval::replace_in_list_with_branch(lval_sptr n) {
-  replace_in_list(n);
-  lval_sptr b = get_branch();
-  if (b) n->insert_branch(b);
 }
 
 lval lval::clone() {
