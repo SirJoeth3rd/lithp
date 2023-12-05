@@ -94,6 +94,11 @@ void lnode<T>::remove_prev() {
 }
 
 template <typename T>
+std::shared_ptr<T> lnode<T>::get_branch() {
+  return branch;
+}
+
+template <typename T>
 void lnode<T>::remove_branch() {
   std::shared_ptr<T> tmp = branch;
   if (branch) {

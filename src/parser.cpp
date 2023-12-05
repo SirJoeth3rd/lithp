@@ -167,7 +167,7 @@ void pop_saves() {
   prev->remove_next();
   head = saves.top();
   saves.pop();
-  if (head->has_prev()) {
+  if (head->get_prev()) {
     prev = head->get_prev();
   } else {
     prev = nullptr;
