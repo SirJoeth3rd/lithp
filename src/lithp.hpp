@@ -76,6 +76,7 @@ public:
   lval_sptr clone_recurse();
   void print_content();
   void print_address();
+  void print();
 };
 
 //TODO support for named namespaces

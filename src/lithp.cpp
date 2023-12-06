@@ -127,7 +127,7 @@ void lnode<T>::replace_in_list(std::shared_ptr<T> ln) {
   std::shared_ptr<T> next = get_next();
 
   if (prev) prev->insert_next(ln);
-  if (next) next->insert_next(ln);
+  if (next) next->insert_prev(ln);
 }
 
 template <typename T>
@@ -226,6 +226,10 @@ void lval::print_content() {
 
 void lval::print_address() {
   std::cout << this;
+}
+
+void lval::print() {
+  print_tree(shared_from_this(),0);
 }
 
 void print_lval_and_address(lval_sptr head, int indent) {
