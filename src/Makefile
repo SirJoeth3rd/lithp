@@ -9,6 +9,9 @@ lithp_terminal: lithp_terminal.o lithp.o parser.o tokenizer.o lithp_std_lib.o
 lithp: lithp.o parser.o tokenizer.o
 	g++ -o lithp_test -I $(ODIR) $(ODIR)/*.o
 
+lithp_tests.o: lithp_tests.cpp
+	g++ -c -g lithp_tests.cpp -o $(ODIR)/lithp_tests.o
+
 lithp_terminal.o: lithp_std_lib.cpp
 	g++ -c -g lithp_terminal.cpp -o $(ODIR)/lithp_terminal.o
 

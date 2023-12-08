@@ -325,7 +325,7 @@ void lithp_engine::eval(lval_sptr l) {
     case Symbol:
       symbol = std::get<string>(l->data);
       if (symbol_table.count(symbol)) {
-	result = symbol_table[symbol];
+	result = symbol_table[symbol]->clone_recurse();
 	l->replace_in_list_with_branch(result);
 	*l = *result;
 	continue;
@@ -366,7 +366,7 @@ lval_sptr lithp_engine::call_func(lval_sptr l , lithp_engine* engine) {
 }
 
 void lithp_engine::set_symbol(string sym, lval_sptr l) {
-  symbol_table.set(sym, l);
+  symbol_table.set(sym, l->clone_recurse());
 }
 
 void lithp_engine::set_global(string sym, lval_sptr l) {

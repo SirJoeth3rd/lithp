@@ -94,7 +94,9 @@ lval_sptr function(lval_sptr h, lithp_engine* engine) {
 
 lval_sptr set(lval_sptr h, lithp_engine* engine) {
   //expect set(symbol, expr)
-  engine->set_symbol(std::get<string>(h->data),h->get_next());
+  lval_sptr expr = h->get_next();
+  engine->eval(expr);
+  engine->set_symbol(std::get<string>(h->data),expr);
   return std::make_unique<lval>(lval()); //just return nil
 }
 
@@ -107,6 +109,7 @@ void load_all_functions(lithp_engine* engine) {
   
   With->set_macro(true);
   Function->set_macro(true);
+  Set->set_macro(true);
 
   engine->set_symbol("plus", Plus);
   engine->set_symbol("mul", Mul);
