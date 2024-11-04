@@ -67,9 +67,14 @@ void handle_error(TokenizationError error) {
 Token* tokenize(const char* string) {
   //init TOKENS
   TOKENS = malloc(sizeof(Token) * BUFFER);
+  CHR = string;
+  CHRVAL = *CHR;
   
-  for (CHR = string; CHRVAL; incchar()) {
-    if (isalpha(CHRVAL)) {
+  while (CHRVAL) {
+    if (isspace(CHRVAL)) {
+      incchar();
+      continue;
+    } else if (isalpha(CHRVAL)) {
       tokenize_symbol();
     } else if (isdigit(CHRVAL)) {
       tokenize_number();
@@ -93,6 +98,7 @@ Token* tokenize(const char* string) {
       default:
 	handle_error(generic_error);
       }
+      incchar();
     }
     if (ERROR) {
       break;
@@ -114,8 +120,10 @@ void tokenize_symbol() {
     } else if (isspace(CHRVAL) || isdelimiter(CHRVAL)) {
       TOKENS[TOKIND] = (Token){start,length,symbol};
       TOKIND += 1;
+      return;
     } else {
       handle_error(generic_error);
+      return;
     }
   }
   if (!CHRVAL) {
@@ -137,13 +145,16 @@ void tokenize_number() {
 	return;
       } else {
 	isfloat = true;
+	length++;
 	incchar();
       }
     } else if (isspace(CHRVAL) || isdelimiter(CHRVAL)) {
-      TOKENS[TOKIND] = (Token){start,length,symbol};
+      TOKENS[TOKIND] = (Token){start,length,number};
       TOKIND += 1;
+      return;
     } else {
       handle_error(generic_error);
+      return;
     }
   }
   if (!CHRVAL) {
@@ -152,15 +163,19 @@ void tokenize_number() {
 }
 
 void tokenize_string() {
+  incchar(); // exclude the starting "
   const char* start = CHR;
   int length = 0;
   while (CHRVAL) {
     if (CHRVAL == '"') {
-      TOKENS[TOKIND] = (Token){start,length,symbol};
+      TOKENS[TOKIND] = (Token){start,length,string};
       TOKIND += 1;
+      return;
     } else if (CHRVAL == '\n') {
       handle_error(newline_in_string);
+      return;
     }
+    length++;
     incchar();
   }
   if (!CHRVAL) {
@@ -169,7 +184,7 @@ void tokenize_string() {
 }
 
 int main() {
-  const char* expr = "function[alpha,beta]";
+  const char* expr = "\"hello\"";
 
   Token* tokens = tokenize(expr);
 
