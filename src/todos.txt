@@ -1,0 +1,2 @@
+Todo's for this project
+1. Parser should be extendable, ie user should be able to add new operators that are either chainable or not. Though I don't think the parser has to check that, it chains it automaticall as a list call and the type checker should flag it as incorrect

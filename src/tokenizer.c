@@ -21,8 +21,6 @@ typedef struct Token_ {
 
 //GLOBALS
 const int BUFFER = 100;
-Token* TOKENS;
-int TOKIND = 0;
 
 //function definitions
 void tokenize_symbol(void);
@@ -30,12 +28,21 @@ void tokenize_number(void);
 void tokenize_string(void);
 void incchar(void);
 bool isdelimiter(char);
+void print_tokens(Token*);
+void add_token(const char*,int,TokenType);
 
 const char* CHR;
 char CHRVAL;
 void incchar(void) {
   CHR++;
   CHRVAL = *CHR;
+}
+
+Token* TOKENS;
+int TOKIND = 0;
+void add_token(const char* p, int l, TokenType t) {
+  TOKENS[TOKIND] = (Token){p,l,t};
+  TOKIND++;
 }
 
 bool isdelimiter(char chr) {
@@ -64,8 +71,7 @@ void handle_error(TokenizationError error) {
   ERROR = true;
 }
 
-Token* tokenize(const char* string) {
-  //init TOKENS
+Token* tokenize(const char* string) { 
   TOKENS = malloc(sizeof(Token) * BUFFER);
   CHR = string;
   CHRVAL = *CHR;
@@ -84,16 +90,13 @@ Token* tokenize(const char* string) {
 	tokenize_string();
 	break;
       case '[':
-	TOKENS[TOKIND] = (Token){NULL,0,lbrack};
-	TOKIND += 1;
+	add_token(NULL,0,lbrack);
 	break;
       case ']':
-	TOKENS[TOKIND] = (Token){NULL,0,rbrack};
-	TOKIND += 1;
+	add_token(NULL,0,rbrack);
 	break;
       case ',':
-	TOKENS[TOKIND] = (Token){NULL,0,comma};
-	TOKIND += 1;
+	add_token(NULL,0,comma);
 	break;
       default:
 	handle_error(generic_error);
@@ -105,7 +108,8 @@ Token* tokenize(const char* string) {
     }
   }
 
-  TOKENS[TOKIND] = (Token){NULL,0,end};
+  //ZII:)
+  add_token(NULL,0,end);
   
   return TOKENS;
 }
@@ -118,8 +122,7 @@ void tokenize_symbol() {
       length++;
       incchar();
     } else if (isspace(CHRVAL) || isdelimiter(CHRVAL)) {
-      TOKENS[TOKIND] = (Token){start,length,symbol};
-      TOKIND += 1;
+      add_token(start,length,symbol);
       return;
     } else {
       handle_error(generic_error);
@@ -149,8 +152,7 @@ void tokenize_number() {
 	incchar();
       }
     } else if (isspace(CHRVAL) || isdelimiter(CHRVAL)) {
-      TOKENS[TOKIND] = (Token){start,length,number};
-      TOKIND += 1;
+      add_token(start,length,number);
       return;
     } else {
       handle_error(generic_error);
@@ -168,8 +170,7 @@ void tokenize_string() {
   int length = 0;
   while (CHRVAL) {
     if (CHRVAL == '"') {
-      TOKENS[TOKIND] = (Token){start,length,string};
-      TOKIND += 1;
+      add_token(start,length,string);
       return;
     } else if (CHRVAL == '\n') {
       handle_error(newline_in_string);
@@ -183,15 +184,38 @@ void tokenize_string() {
   }
 }
 
+void print_tokens(Token* tokens) {
+  for (Token* token = tokens; token->toktype != end; token++) {
+    switch (token->toktype) {
+    case string:
+      printf("STRING <%.*s>\n",token->length, token->pos);
+      break;
+    case number:
+      printf("NUMBER <%.*s>\n",token->length, token->pos);
+      break;
+    case symbol:
+      printf("SYMBOL <%.*s>\n",token->length, token->pos);
+      break;
+    case lbrack:
+      printf("LBRACK\n");
+      break;
+    case rbrack:
+      printf("RBRACK\n");
+      break;
+    case comma:
+      printf("COMMA\n");
+      break;
+    case end:
+      printf("END {not supposed to be reachable}\n");
+      break;
+    }
+  }
+}
+
 int main() {
-  const char* expr = "\"hello\"";
+  const char* expr = "func[1,b,c,77.78]";
 
   Token* tokens = tokenize(expr);
 
-  int len = 0;
-  for (;(*tokens).toktype != end;tokens++) {
-    len += 1;
-  }
-
-  printf("%i",len);
+  print_tokens(tokens);
 }
