@@ -1,28 +1,26 @@
 #include "tokenizer.c"
+#include <stdbool.h>
+#include <string.h>
+#include "lithp.h"
 
-typedef struct Lval {
-  struct Lval* next;
-  struct Lval* prev;
-  struct Lval* child;
-  struct Lval* parent;
-  enum {
-    Symbol,
-    Number,
-    String
-  } ltype;
-  union {
-    int integer;
-    const char* symbol;
-    char* string;
-  };
-} Lval;
 
-Lval* parse(Token* tokens) {
-  //expect expr = symbol [expr..] | number | string 
-  while (tokens->toktype != end) {
+bool expect(TokenType type, Token* tok) {
+  if (tok->toktype != type) {
+    return false;
+  } else {
+    return true;
+  }
+}
+
+Lval* error_lval(char* error_msg) {
+  
+}
+
+
+Lval* parse_expr(Token* token) {
+  if (!expect(Symbol, token)) {
     
   }
-  return 0; //lol
 }
 
 void print_ast(Token* tokens);
