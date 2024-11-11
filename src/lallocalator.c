@@ -2,14 +2,22 @@
 #include "lithp.h"
 
 const int INIT_SIZE = 1024;
+const int STEP_SIZE = 1024;
 
 typedef struct Lallocator {
   Lval* block;
   Lval* fop; // first open position
+  int size;
 } Lallocator;
 
 Lval* find_next_op(Lallocator* A, Lval* curr) {
-  //todo need to check memory and realloc if needed
+  //TODO: this implementation is very compact but very slow
+  //we have to run this calculation everytime we just want to
+  //load a new token
+  if (curr - A->block - A->size < 2) {
+    A->size += STEP_SIZE;
+    A->block = realloc(A->block, A->size);
+  }
   while (curr->ltype) {
     curr++;
   }
@@ -18,6 +26,7 @@ Lval* find_next_op(Lallocator* A, Lval* curr) {
 
 void lalloc_init(Lallocator* A) {
   A->block = malloc(sizeof(Lval) * INIT_SIZE);
+  A->end = A->block + INIT_SIZE;
   A->fop = A->block;
 }
 
